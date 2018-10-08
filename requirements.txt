@@ -1,0 +1,5 @@
+dimspy
+networkx
+mysql-connector
+pandas
+plotly
