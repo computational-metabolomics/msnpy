@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
@@ -119,9 +118,9 @@ def main():
                            default=None, type=float, required=False,
                            help="Normalise scans by Total Ion Current (TIC)")
 
-    parser_ps.add_argument('-e', '--exclusion-list',
-                           default=None, type=float, required=False,
-                           help="W")
+    parser_ps.add_argument('-e', '--exclusion-list', nargs='+',
+                           default=None, required=False,
+                           help="List of mz values to exclude from processing (e.g. from electrical noise)")
 
     parser_ps.add_argument('-r', '--ringing-threshold',
                            default=None, type=float, required=False,
@@ -184,7 +183,7 @@ def main():
                             type=str, required=True,
                             help="Json file containing the annotated spectral trees.")
 
-    parser_ast.add_argument('-a', '--adducts', nargs='+', required=False,
+    parser_ast.add_argument('-a', '--adducts', nargs='+', required=True,
                             help="Adducts e.g. [M+H]+ [M+NH4]+ [M+Na]+ [M+(39K)]+",
                             default=['[M+H]+', '[M+Na]+', '[M+NH4]+'])
 
@@ -207,7 +206,7 @@ def main():
 
 
     args = parser.parse_args()
-    
+
     print(args)
 
     if args.step == "group-scans":
@@ -249,10 +248,14 @@ def main():
     if args.step == "annotate-spectral-trees":
         spectral_trees = load_trees(args.input, format="json")
 
+        adducts = args.adducts.replace('__ob__', '[')
+        adducts = adducts.replace('__cb__', ']')
+
+
         st = annotate_mf(spectral_trees=spectral_trees,
                          db_out=args.output_db,
                          ppm=args.ppm,
-                         adducts=args.adducts,
+                         adducts=adducts,
                          rules=args.rules,
                          mf_db=args.mf_db)
 
@@ -268,4 +271,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
