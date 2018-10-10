@@ -264,7 +264,7 @@ def main():
     if args.step == "rank-spectral-trees":
         st = load_trees(args.input, format="json")
         ranks = rank_mf(st)
-        ranks.to_csv(args.file_ranks, sep="\t", index=False)
+        ranks.to_csv(args.output, sep="\t", index=False)
 
 
 if __name__ == "__main__":
