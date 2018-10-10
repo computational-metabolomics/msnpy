@@ -248,9 +248,7 @@ def main():
     if args.step == "annotate-spectral-trees":
         spectral_trees = load_trees(args.input, format="json")
 
-        adducts = args.adducts.replace('__ob__', '[')
-        adducts = adducts.replace('__cb__', ']')
-
+        adducts = [a.replace('__ob__', '[').replace('__cb__', ']') for a in args.adducts]
 
         st = annotate_mf(spectral_trees=spectral_trees,
                          db_out=args.output_db,
