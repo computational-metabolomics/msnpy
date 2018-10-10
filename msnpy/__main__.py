@@ -258,8 +258,8 @@ def main():
                          mf_db=args.mf_db)
 
         if args.filter:
-            st = filter_mf(st, args.db_out)
-        save_trees(st, args.output, format="json")
+            st = filter_mf(st, args.output_db)
+        save_trees(st, args.output_trees, format="json")
 
     if args.step == "rank-spectral-trees":
         st = load_trees(args.input, format="json")
