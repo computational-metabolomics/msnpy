@@ -125,7 +125,7 @@ class DbMolecularFormulaeLocal:
 class DbMolecularFormulaeApi:
 
     def __init__(self, url):
-        self.url = '{}/mass_range'.format(url)
+        self.url = '{}/api/formula/mass_range/'.format(url)
         url_test = '{}/api/formula/mass_range/?lower=71.0371&upper=71.03712&rules=1'.format(url)
         o = urlparse(url)
         if o.scheme != "http" and o.netloc != "mfdb.bham.ac.uk":
