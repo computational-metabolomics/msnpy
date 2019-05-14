@@ -187,17 +187,16 @@ class DbMolecularFormulaeApi:
 
             names = ["C", "H", "N", "O", "P", "S"]
             for record in records:
-                
                 # print {"DBE":record[6], "LEWIS":record[7], "SENIOR":record[8], "HC":record[9], "NOPSC":record[10]}
                 mf_out.append(
-                    {"mass": float(record['ExactMass']) + adducts_lib[adduct],
-                     "atoms": {k: record[k] for k in names},
+                    {"mass": float(record['exact_mass']) + adducts_lib[adduct],
+                     "atoms": {k: record['atoms'][k] for k in names},
                      "adduct": adduct,
-                     "DBE": record['DoubleBondEquivalents'],
-                     "LEWIS": record['LEWIS'],
-                     "SENIOR": record['SENIOR'],
-                     "HC": record['HC'],
-                     "NOPSC": record['NOPSC']})
+                     "DBE": record['rules']['double_bond_equivalents'],
+                     "LEWIS": record['rules']['lewis'],
+                     "SENIOR": record['rules']['senior'],
+                     "HC": record['rules']['HC'],
+                     "NOPSC": record['rules']['NOPSC']})
                 mf_id += 1
             else:
                 pass
