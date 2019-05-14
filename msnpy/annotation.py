@@ -125,10 +125,10 @@ class DbMolecularFormulaeLocal:
 class DbMolecularFormulaeApi:
 
     def __init__(self, url):
-        self.url = '{}/mass_range'.format(url)
-        url_test = '{}//mass?mass=180.06339&tol=0.0&unit=ppm&rules=1'.format(url)
+        self.url = '{}/api/formula/mass_range/'.format(url)
+        url_test = '{}/api/formula/mass_range/?lower=71.0371&upper=71.03712&rules=1'.format(url)
         o = urlparse(url)
-        if o.scheme != "http" and o.netloc != "multiomics-int.cs.bham.ac.uk":
+        if o.scheme != "http" and o.netloc != "mfdb.bham.ac.uk":
             raise ValueError("No database or local db available")
         else:
             r = requests.get(url_test)
@@ -187,17 +187,16 @@ class DbMolecularFormulaeApi:
 
             names = ["C", "H", "N", "O", "P", "S"]
             for record in records:
-                
                 # print {"DBE":record[6], "LEWIS":record[7], "SENIOR":record[8], "HC":record[9], "NOPSC":record[10]}
                 mf_out.append(
-                    {"mass": float(record['ExactMass']) + adducts_lib[adduct],
-                     "atoms": {k: record[k] for k in names},
+                    {"mass": float(record['exact_mass']) + adducts_lib[adduct],
+                     "atoms": {k: record['atoms'][k] for k in names},
                      "adduct": adduct,
-                     "DBE": record['DoubleBondEquivalents'],
-                     "LEWIS": record['LEWIS'],
-                     "SENIOR": record['SENIOR'],
-                     "HC": record['HC'],
-                     "NOPSC": record['NOPSC']})
+                     "DBE": record['rules']['double_bond_equivalents'],
+                     "LEWIS": record['rules']['lewis'],
+                     "SENIOR": record['rules']['senior'],
+                     "HC": record['rules']['HC'],
+                     "NOPSC": record['rules']['NOPSC']})
                 mf_id += 1
             else:
                 pass
