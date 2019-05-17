@@ -126,7 +126,7 @@ class DbMolecularFormulaeApi:
 
     def __init__(self, url):
         self.url = '{}/api/formula/mass_range/'.format(url)
-        url_test = '{}/api/formula/mass_range/?lower=71.0371&upper=71.03712&rules=1'.format(url)
+        url_test = '{}/api/formula/mass/?mass=71.03711&tol=1&tol_unit=ppm&rules=1'.format(url)
         o = urlparse(url)
         if o.scheme != "http" and o.netloc != "mfdb.bham.ac.uk":
             raise ValueError("No database or local db available")

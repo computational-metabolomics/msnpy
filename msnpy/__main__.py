@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
+import os
 import argparse
 from msnpy.processing import group_scans
 from msnpy.processing import process_scans
@@ -12,6 +13,8 @@ from msnpy.portals import save_groups
 from msnpy.portals import load_groups
 from msnpy.portals import save_trees
 from msnpy.portals import load_trees
+from msnpy.convert import tree2peaklist
+from msnpy.convert import peaklist2msp
 
 
 from dimspy.portals import hdf5_portal
@@ -40,10 +43,11 @@ def main():
     parser_cst = subparsers.add_parser('create-spectral-trees', help='Create spectral trees from processed scan (fragmentation) data.')
     parser_ast = subparsers.add_parser('annotate-spectral-trees', help='Annotate and/or filter spectral trees.')
     parser_rst = subparsers.add_parser('rank-spectral-trees', help='Rank annotated spectral trees.')
+    parser_cvst = subparsers.add_parser('convert-spectral-trees', help='Convert spectral trees to either dimspy peaklists, MSP files or both')
 
-    #################################
+    ##################################################################
     # GROUP SCANS
-    #################################
+    ##################################################################
 
     parser_g.add_argument('-i', '--input',
                           type=str, required=True,
@@ -78,9 +82,9 @@ def main():
                           action='store_true', required=False,
                           help="")
 
-    #################################
+    ##################################################################
     # PROCESS SCANS
-    #################################
+    ##################################################################
 
     parser_ps.add_argument('-i', '--input',
                            type=str, required=True,
@@ -139,9 +143,9 @@ def main():
                            help="Number of central processing units (CPUs).")
 
 
-    #################################
+    ##################################################################
     # CREATE SPECTRAL TREES
-    #################################
+    ##################################################################
 
     parser_cst.add_argument('-i', '--input',
                             type=str, required=True,
@@ -156,9 +160,9 @@ def main():
                             help="")
 
 
-    #################################
+    ##################################################################
     # ANNOTATE SPECTRAL TREES
-    #################################
+    ##################################################################
     parser_ast.add_argument('-i', '--input',
                             type=str, required=True,
                             help="Json file containing spectral trees")
@@ -203,6 +207,51 @@ def main():
     parser_rst.add_argument('-o', '--output',
                             type=str, required=True,
                             help="Summary of the rankings")
+
+
+
+    ##################################################################
+    # CONVERT SPECTRA TREES - TO DIMSPY.PEAKLISTS AND MSP FILES
+    ##################################################################
+    parser_cvst.add_argument('-i', '--input',
+                            type=str, required=True,
+                            help="Json file containing annotated spectral trees")
+
+    parser_cvst.add_argument('-o', '--output',
+                            type=str, required=True,
+                            help="Out folder containing spectra")
+
+    parser_cvst.add_argument('-n', '--name', type=str, required=False,
+                           help="Name to use for suffixing files")
+
+
+    parser_cvst.add_argument('-a', '--adjust_mz',
+                             action='store_true', required=False,
+                             help="Filter the spectral tree annotations")
+
+    parser_cvst.add_argument('-m', '--merge',
+                             action='store_true', required=False,
+                             help="Filter the spectral tree annotations")
+
+    parser_cvst.add_argument('-p', '--ppm',
+                            default=5.0, type=float, required=False,
+                            help="Mass tolerance in Parts per million.")
+
+    parser_cvst.add_argument('-s', '--msp',
+                             action='store_true', required=False,
+                             help="Filter the spectral tree annotations")
+
+    parser_cvst.add_argument('-t', '--msp_type',
+                             default="massbank", type=str, required=False,
+                             help="If MSP file is to be created what type (massbank, msp)")
+
+    parser_cvst.add_argument('-z', '--polarity',
+                           type=str, required=False, default='NA',
+                           help="Polarity to add to the MSP file (positive or negative)")
+
+    parser_cvst.add_argument('-y', '--ms1',
+                             action='store_true', required=False,
+                             help="Output ms1 spectra (creates spectra for the precursors in the MS1 spectra")
 
 
     args = parser.parse_args()
@@ -265,6 +314,38 @@ def main():
         st = load_trees(args.input, format="json")
         ranks = rank_mf(st)
         ranks.to_csv(args.output, sep="\t", index=False)
+
+    if args.step == "create-spectral-trees":
+        groups = load_groups(args.groups, format="json")
+        pls = hdf5_portal.load_peaklists_from_hdf5(args.input)
+        spectral_trees = create_spectral_trees(groups, pls)
+        save_trees(spectral_trees, args.output, format="json")
+
+    if args.step == "convert-spectral-trees":
+        print('converting trees to dimspy peaklists')
+        non_merged_pls, merged_pls, ms1_precursor_pl = tree2peaklist(tree_pth=args.input,
+                                                 out_pth=args.output,
+                                                 name=args.name,
+                                                 adjust_mz=args.adjust_mz,
+                                                 merge=args.merge,
+                                                 ppm=args.ppm)
+        if args.msp:
+            print('Converting dimspy peaklists to MSP files')
+            if non_merged_pls:
+                peaklist2msp(non_merged_pls,
+                             os.path.join(args.out_pth, '{}_non_merged.msp'.format(args.name)),
+                             msp_type=args.msp_type,
+                             polarity=args.polarity)
+            if merged_pl:
+                peaklist2msp(merged_pls,
+                             os.path.join(args.out_pth, '{}_merged.msp'.format(args.name)),
+                             msp_type=args.msp_type,
+                             polarity=args.polarity)
+            if ms1_precursor_pl:
+                peaklist2msp(ms1_precursor_pl,
+                             os.path.join(args.out_pth, '{}_ms1_precursor.msp'.format(args.name)),
+                             msp_type=args.msp_type,
+                             polarity=args.polarity)
 
 
 if __name__ == "__main__":
