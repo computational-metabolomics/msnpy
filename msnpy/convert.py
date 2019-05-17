@@ -11,7 +11,7 @@ import re
 import os
 
 
-def tree2peaklist(tree_pth, out_pth, name='', adjust_mz=True, merge=True, ppm=5, ms1=True):
+def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth='', name=''):
     ####################################################################################################################
     # Extract peaklists from msnpy
     ####################################################################################################################
@@ -118,22 +118,27 @@ def tree2peaklist(tree_pth, out_pth, name='', adjust_mz=True, merge=True, ppm=5,
             merged_pls.append(plm)
 
         if out_pth:
-            save_peaklists_as_hdf5(plms, os.path.join(out_pth, '{}_merged_pls.hdf5'.format(name)))
+            save_peaklists_as_hdf5(merged_pls, os.path.join(out_pth, '{}_merged_pls.hdf5'.format(name)))
     else:
         merged_pls = ''
 
     if ms1:
-        ms1_precursors_pl = PeakList(ID='ms1_precursors',
-                                     mz=list(all_ms1_precursors.keys()),
-                                     intensity=list(all_ms1_precursors.values()))
-        save_peaklists_as_hdf5(ms1_precursors_pl, os.path.join(out_pth, '{}_ms1_precursors_pls.hdf5'.format(name)))
+        mz = list(all_ms1_precursors.keys())
+        mz.sort()
+        intensity = list(all_ms1_precursors.values())
+        intensity = [x for _, x in sorted(zip(mz, intensity))]
+        ms1_precursors_pl = [PeakList(ID='ms1_precursors',
+                                      mz=mz,
+                                      intensity=intensity)]
+        if out_pth:
+            save_peaklists_as_hdf5(ms1_precursors_pl, os.path.join(out_pth, '{}_ms1_precursors_pls.hdf5'.format(name)))
     else:
         ms1_precursors_pl = ''
 
     return pls, merged_pls, ms1_precursors_pl
 
 
-def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_annotations=True):
+def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_annotations=True, include_ms1=False):
 
     msp_params = {}
 
@@ -168,13 +173,13 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
             if dt.shape[0] == 0:
                 continue
 
-            if re.search('.*Full ms .*', pl.ID) and ms_level > 1:
+            if not include_ms1 and (re.search('.*Full ms .*', pl.ID) and ms_level > 1):
                 continue
 
             f.write('{} {}\n'.format(msp_params['name'], pl.ID))
             f.write('{} {}\n'.format(msp_params['polarity'], polarity))
 
-            if msnpy_annotations:
+            if msnpy_annotations and not include_ms1:
                 parent_metadata = pl.metadata['parent'][min(pl.metadata['parent'].keys())]
 
                 f.write('{} {}\n'.format(msp_params['precursor_type'], parent_metadata['adduct']))
@@ -203,8 +208,7 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
                 f.write('{} {}\n'.format(msp_params['collision_energy'], ', '.join(set(mtchz[1]))))
 
             f.write('{} {}\n'.format(msp_params['num_peaks'], dt.shape[0]))
-            if msp_params['cols']:
-                f.write('{}\n'.format(msp_params['cols']))
+
 
             mz = dt['mz']
             intensity = dt['intensity']
@@ -216,17 +220,19 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
                     adduct = dt['adduct']
                     mass = dt['mass']
                     f.write('PK$ANNOTATION: m/z tentative_formula formula_count adduct\n')
-                else:
-                    continue
-                for i in range(0, len(mz)):
-                    mzi = mz[i]
-                    mfi = mf[i]
-                    massi = mass[i]
-                    adducti = adduct[i]
-                    if msp_type == 'massbank':
-                        f.write('{}\t{}\t{}\n'.format(mzi, mfi, massi, adducti))
-                    else:
-                        f.write('{}\t{}\n'.format(mzi, rai))
+
+                    for i in range(0, len(mz)):
+                        mzi = mz[i]
+                        mfi = mf[i]
+                        massi = mass[i]
+                        adducti = adduct[i]
+                        if msp_type == 'massbank':
+                            f.write('{}\t{}\t{}\n'.format(mzi, mfi, massi, adducti))
+                        else:
+                            f.write('{}\t{}\n'.format(mzi, rai))
+
+            if msp_params['cols']:
+                f.write('{}\n'.format(msp_params['cols']))
 
             for i in range(0, len(mz)):
                 mzi = mz[i]

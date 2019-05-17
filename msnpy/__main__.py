@@ -224,7 +224,6 @@ def main():
     parser_cvst.add_argument('-n', '--name', type=str, required=False,
                            help="Name to use for suffixing files")
 
-
     parser_cvst.add_argument('-a', '--adjust_mz',
                              action='store_true', required=False,
                              help="Filter the spectral tree annotations")
@@ -324,28 +323,29 @@ def main():
     if args.step == "convert-spectral-trees":
         print('converting trees to dimspy peaklists')
         non_merged_pls, merged_pls, ms1_precursor_pl = tree2peaklist(tree_pth=args.input,
-                                                 out_pth=args.output,
-                                                 name=args.name,
-                                                 adjust_mz=args.adjust_mz,
-                                                 merge=args.merge,
-                                                 ppm=args.ppm)
+                                                                     out_pth=args.output,
+                                                                     name=args.name,
+                                                                     adjust_mz=args.adjust_mz,
+                                                                     merge=args.merge,
+                                                                     ppm=args.ppm)
         if args.msp:
             print('Converting dimspy peaklists to MSP files')
             if non_merged_pls:
                 peaklist2msp(non_merged_pls,
-                             os.path.join(args.out_pth, '{}_non_merged.msp'.format(args.name)),
+                             os.path.join(args.output, '{}_non_merged.msp'.format(args.name)),
                              msp_type=args.msp_type,
                              polarity=args.polarity)
-            if merged_pl:
+            if merged_pls:
                 peaklist2msp(merged_pls,
-                             os.path.join(args.out_pth, '{}_merged.msp'.format(args.name)),
+                             os.path.join(args.output, '{}_merged.msp'.format(args.name)),
                              msp_type=args.msp_type,
                              polarity=args.polarity)
             if ms1_precursor_pl:
                 peaklist2msp(ms1_precursor_pl,
-                             os.path.join(args.out_pth, '{}_ms1_precursor.msp'.format(args.name)),
+                             os.path.join(args.output, '{}_ms1_precursor.msp'.format(args.name)),
                              msp_type=args.msp_type,
-                             polarity=args.polarity)
+                             polarity=args.polarity,
+                             include_ms1=True)
 
 
 if __name__ == "__main__":
