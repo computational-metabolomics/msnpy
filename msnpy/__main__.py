@@ -215,11 +215,15 @@ def main():
     ##################################################################
     parser_cvst.add_argument('-i', '--input',
                             type=str, required=True,
-                            help="Json file containing annotated spectral trees")
+                            help="Json file containing annotated spectral trees or dimspy peaklist hdf5 file")
 
     parser_cvst.add_argument('-o', '--output',
                             type=str, required=True,
                             help="Out folder containing spectra")
+
+    parser_cvst.add_argument('-x', '--input_type',
+                             default="json", type=str, required=False,
+                             help="If input is either a dimspy peaklist or a msnpy json")
 
     parser_cvst.add_argument('-n', '--name', type=str, required=False,
                            help="Name to use for suffixing files")
@@ -322,30 +326,38 @@ def main():
 
     if args.step == "convert-spectral-trees":
         print('converting trees to dimspy peaklists')
-        non_merged_pls, merged_pls, ms1_precursor_pl = tree2peaklist(tree_pth=args.input,
-                                                                     out_pth=args.output,
-                                                                     name=args.name,
-                                                                     adjust_mz=args.adjust_mz,
-                                                                     merge=args.merge,
-                                                                     ppm=args.ppm)
-        if args.msp:
-            print('Converting dimspy peaklists to MSP files')
-            if non_merged_pls:
-                peaklist2msp(non_merged_pls,
-                             os.path.join(args.output, '{}_non_merged.msp'.format(args.name)),
-                             msp_type=args.msp_type,
-                             polarity=args.polarity)
-            if merged_pls:
-                peaklist2msp(merged_pls,
-                             os.path.join(args.output, '{}_merged.msp'.format(args.name)),
-                             msp_type=args.msp_type,
-                             polarity=args.polarity)
-            if ms1_precursor_pl:
-                peaklist2msp(ms1_precursor_pl,
-                             os.path.join(args.output, '{}_ms1_precursor.msp'.format(args.name)),
-                             msp_type=args.msp_type,
-                             polarity=args.polarity,
-                             include_ms1=True)
+        if args.input_type=='json':
+            non_merged_pls, merged_pls, ms1_precursor_pl = tree2peaklist(tree_pth=args.input,
+                                                                         out_pth=args.output,
+                                                                         name=args.name,
+                                                                         adjust_mz=args.adjust_mz,
+                                                                         merge=args.merge,
+                                                                         ppm=args.ppm)
+            if args.msp:
+                print('Converting dimspy peaklists to MSP files')
+                if non_merged_pls:
+                    peaklist2msp(non_merged_pls,
+                                 os.path.join(args.output, '{}_non_merged.msp'.format(args.name)),
+                                 msp_type=args.msp_type,
+                                 polarity=args.polarity)
+                if merged_pls:
+                    peaklist2msp(merged_pls,
+                                 os.path.join(args.output, '{}_merged.msp'.format(args.name)),
+                                 msp_type=args.msp_type,
+                                 polarity=args.polarity)
+                if ms1_precursor_pl:
+                    peaklist2msp(ms1_precursor_pl,
+                                 os.path.join(args.output, '{}_ms1_precursors.msp'.format(args.name)),
+                                 msp_type=args.msp_type,
+                                 polarity=args.polarity,
+                                 include_ms1=True)
+        else:
+            pls = hdf5_portal.load_peaklists_from_hdf5(args.input)
+            peaklist2msp(pls,
+                         os.path.join(args.output, '{}.msp'.format(args.name)),
+                         msp_type=args.msp_type,
+                         polarity=args.polarity)
+
 
 
 if __name__ == "__main__":
