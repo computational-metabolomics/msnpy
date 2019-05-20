@@ -10,6 +10,31 @@ import numpy as np
 import re
 import os
 
+def get_mf_details(pd):
+
+    mf_details_mass = []
+    mf_details_adduct = []
+    mf_details_mf = []
+
+    for mfid, mfd in iteritems(pd['mf']):
+        mf_details_mass.append(mfd['mass'])
+        mf_details_adduct.append(mfd['adduct'])
+        mf_details_mf.append(mfd['mf'])
+
+    mf_details = {}
+    mf_details['mass'] = np.median(mf_details_mass)
+    mf_details['adduct'] = ','.join(mf_details_adduct)
+    mf_details['mf'] = ','.join(mf_details_mf)
+
+    return mf_details
+
+
+def sort_lists(l1, *argv):
+    lall = [l1]
+    for l in argv:
+        lall.append(l)
+    return zip(*sorted(zip(*lall)))
+
 
 def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth='', name=''):
     ####################################################################################################################
@@ -62,26 +87,33 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
                     if pd['mslevel'] in precursor_detail_track:
                         continue
 
-                    mf_details = pd['mf'].values()[0]
                     metad['parent'][pd['mslevel']] = {}
                     metad['parent'][pd['mslevel']]['mz'] = pd['mz']
-                    metad['parent'][pd['mslevel']]['mass'] = mf_details['mass']
-                    metad['parent'][pd['mslevel']]['adduct'] = mf_details['adduct']
-                    metad['parent'][pd['mslevel']]['mf'] = mf_details['mf']
+                    if 'mf' in pd:
+                        mf_details_p = get_mf_details(pd)
+                        metad['parent'][pd['mslevel']]['mass'] = mf_details_p['mass']
+                        metad['parent'][pd['mslevel']]['adduct'] = mf_details_p['adduct']
+                        metad['parent'][pd['mslevel']]['mf'] = mf_details_p['mf']
+
                     precursor_detail_track.append(pd['mslevel'])
 
                     if ms1:
                         if adjust_mz:
-                            all_ms1_precursors[mf_details['mass']] = pd['intensity']
+                            all_ms1_precursors[mf_details_p['mass']] = pd['intensity']
                         else:
                             all_ms1_precursors[pd['mz']] = pd['intensity']
 
                 mz.append(d['mz'])
                 intensity.append(d['intensity'])
-                mf_details = d['mf'].values()[0]
-                mass.append(mf_details['mass'])
-                mf.append(mf_details['mf'])
-                adduct.append(mf_details['adduct'])
+
+                if 'mf' in d:
+                    mf_details = get_mf_details(d)
+                    mass.append(mf_details['mass'])
+                    mf.append(mf_details['mf'])
+                    adduct.append(mf_details['adduct'])
+
+            if len(mz)<1:
+                continue
 
             if adjust_mz:
                 mza = mass
@@ -89,14 +121,22 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
                 mza = mz
 
             # create dimspy array object
+            if mf:
+                mza, intensity, mass, mf, adduct = sort_lists(mza, intensity, mass, mf, adduct)
+            else:
+                mza, intensity = sort_lists(mza, intensity)
+
+
             pl = PeakList(ID='{}: {}'.format(tree.graph['id'], header),
                           mz=mza,
                           intensity=intensity,
                           **metad)
-            pl.add_attribute('mass', mass)
-            pl.add_attribute('mz_original', mz)
-            pl.add_attribute('mf', mf)
-            pl.add_attribute('adduct', adduct)
+            print(pl)
+            if mf:
+                pl.add_attribute('mass', mass)
+                pl.add_attribute('mz_original', mz)
+                pl.add_attribute('mf', mf)
+                pl.add_attribute('adduct', adduct)
 
             plsd[tree.graph['id']].append(pl)
 
@@ -110,6 +150,9 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
     if merge:
         merged_pls = []
         for (key, pls) in iteritems(plsd):
+
+            if not pls:
+                continue
             merged_id = "<#>".join([pl.ID for pl in pls])
             pm = align_peaks(pls, ppm=ppm)
             plm = pm.to_peaklist(ID=merged_id)
@@ -123,15 +166,12 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
         merged_pls = ''
 
     if ms1:
-        mz = list(all_ms1_precursors.keys())
-        mz.sort()
-        intensity = list(all_ms1_precursors.values())
-        intensity = [x for _, x in sorted(zip(mz, intensity))]
+        mz, intensity = sort_lists(list(all_ms1_precursors.keys()), list(all_ms1_precursors.values()))
         ms1_precursors_pl = [PeakList(ID='ms1_precursors',
                                       mz=mz,
                                       intensity=intensity)]
         if out_pth:
-            save_peaklists_as_hdf5(ms1_precursors_pl, os.path.join(out_pth, '{}_ms1_precursors_pls.hdf5'.format(name)))
+            save_peaklists_as_hdf5(ms1_precursors_pl, os.path.join(out_pth, '{}_ms1_precursors_pl.hdf5'.format(name)))
     else:
         ms1_precursors_pl = ''
 
@@ -173,7 +213,7 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
             if dt.shape[0] == 0:
                 continue
 
-            if not include_ms1 and (re.search('.*Full ms .*', pl.ID) and ms_level > 1):
+            if not include_ms1 and (re.search('.*Full ms .*', pl.ID) and ms_level == 1):
                 continue
 
             f.write('{} {}\n'.format(msp_params['name'], pl.ID))
@@ -181,10 +221,10 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
 
             if msnpy_annotations and not include_ms1:
                 parent_metadata = pl.metadata['parent'][min(pl.metadata['parent'].keys())]
-
-                f.write('{} {}\n'.format(msp_params['precursor_type'], parent_metadata['adduct']))
                 f.write('{} {}\n'.format(msp_params['precursor_mz'], parent_metadata['mz']))
-                f.write('{} {}\n'.format(msp_params['mf'], parent_metadata['mf']))
+                if 'mf' in parent_metadata:
+                    f.write('{} {}\n'.format(msp_params['precursor_type'], parent_metadata['adduct']))
+                    f.write('{} {}\n'.format(msp_params['mf'], parent_metadata['mf']))
 
             else:
                 mtch = re.search('.*Full ms(\d+).*', pl.ID)
