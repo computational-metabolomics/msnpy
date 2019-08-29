@@ -1,8 +1,8 @@
 MSnPy
 ======
-|Version| |Py versions| |Git| |Bioconda| |Build Status (Travis)| |Build Status (AppVeyor)| |License| |RTD doc|
+|Version| |Py versions| |Git| |Bioconda| |Build Status (Travis)| |Build Status (AppVeyor)| |License| |RTD doc| |codecov| |binder|
 
-Python Package to process and annotate multi-stage mass spectrometry data
+Python package to process and annotate MSn fragmentation data
 
 - **Documentation:** https://computational-metabolomics.github.io/msnpy
 - **Source:** https://github.com/computational-metabolomics/msnpy
@@ -32,6 +32,7 @@ will help you to make the PR if you are new to `git`.
 Developers & Contributors
 -------------------------
  - Ralf J. M. Weber (r.j.weber@bham.ac.uk) - `University of Birmingham (UK) <http://www.birmingham.ac.uk/index.aspx>`_
+ - Thomas N. Lawson (tnl495@bham.ac.uk) - `University of Birmingham (UK) <http://www.birmingham.ac.uk/index.aspx>`_
 
 
 License
@@ -62,3 +63,10 @@ Released under the GNU General Public License v3.0 (see `LICENSE file <https://g
 
 .. |RTD doc| image:: https://img.shields.io/badge/documentation-RTD-71B360.svg?style=flat&maxAge=3600
    :target: https://computational-metabolomics.github.io/msnpy/
+   
+.. |codecov| image:: https://codecov.io/gh/computational-metabolomics/msnpy/branch/master/graph/badge.svg
+   :target: https://codecov.io/gh/computational-metabolomics/msnpy
+
+.. |binder| image:: https://mybinder.org/badge_logo.svg
+   :target: https://mybinder.org/v2/gh/computational-metabolomics/msnpy/master?filepath=notebooks%2Fworkflow.ipynb
+
