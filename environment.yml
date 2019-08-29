@@ -7,6 +7,6 @@ dependencies:
  - python=3.7
  - dimspy
  - networkx
- - mysql-connector
+ - mysql-connector-python
  - pandas
  - plotly
