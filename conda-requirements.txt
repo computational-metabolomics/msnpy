@@ -1,5 +1,0 @@
-# Use this file to create a conda environment using:
-# conda create -n msnpy python=2.7 -c conda-forge -c bioconda --file conda-requirements.txt
-
-dimspy
-networkx
