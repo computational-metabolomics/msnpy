@@ -2,20 +2,22 @@
 import os
 import collections
 import sqlite3
-import ConfigParser
+import configparser
+from typing import Sequence
 import mysql.connector
-from urlparse import urlparse
+from urllib.parse import urlparse
 import requests
+import networkx as nx
 import pandas as pd
-from processing import mz_tolerance
+from .processing import mz_tolerance
 
 
 class DbMolecularFormulaeLocal:
 
-    def __init__(self, config_db):
+    def __init__(self, config_db: str):
 
         # Read config file
-        config = ConfigParser.ConfigParser()
+        config = configparser.ConfigParser()
         config.read(config_db)
 
         # MySQL configurations
@@ -42,7 +44,7 @@ class DbMolecularFormulaeLocal:
         return ranges
 
 
-    def select_mf(self, min_tol, max_tol, adducts=None, rules=True, sql_filter=""):
+    def select_mf(self, min_tol: float, max_tol: float, adducts: dict = None, rules: bool = True, sql_filter: str = ""):
         # print min_tol, max_tol, adducts, rules
         # print (137.0588-min_tol)/(137.0588*0.000001)
         # print (137.0588-max_tol)/(137.0588*0.000001)
@@ -134,7 +136,7 @@ class DbMolecularFormulaeApi:
             r = requests.get(url_test)
             r.raise_for_status()
 
-    def select_mf(self, min_tol, max_tol, adducts=None, rules=True, sql_filter=""):
+    def select_mf(self, min_tol: float, max_tol: float, adducts: dict = None, rules: bool = True, sql_filter: str = ""):
         # print min_tol, max_tol, adducts, rules
         # print (137.0588-min_tol)/(137.0588*0.000001)
         # print (137.0588-max_tol)/(137.0588*0.000001)
@@ -210,7 +212,8 @@ class DbMolecularFormulaeApi:
         return mf_out
 
 
-def mz_pair_diff_tol(lower_mz, upper_mz, lower_mz_tol, upper_mz_tol, lower_mz_unit="ppm", upper_mz_unit="ppm"):
+def mz_pair_diff_tol(lower_mz: float, upper_mz: float, lower_mz_tol: float, upper_mz_tol: float,
+                     lower_mz_unit: str = "ppm", upper_mz_unit: str = "ppm"):
     mz_diff = upper_mz - lower_mz
     lmt = mz_tolerance(lower_mz, lower_mz_tol, lower_mz_unit)[1] - lower_mz
     hmt = mz_tolerance(upper_mz, upper_mz_tol, upper_mz_unit)[1] - upper_mz
@@ -222,7 +225,8 @@ def mz_pair_diff_tol(lower_mz, upper_mz, lower_mz_tol, upper_mz_tol, lower_mz_un
         return mz_diff - total_tol, mz_diff + total_tol
 
 
-def annotate_mf(spectral_trees, db_out, ppm, adducts=["[M+H]+"], rules=True, mf_db="http://multiomics-int.cs.bham.ac.uk", prefix_inp=""):
+def annotate_mf(spectral_trees: Sequence[nx.OrderedDiGraph], db_out: str, ppm: float, adducts: list = ["[M+H]+"],
+                rules: bool = True, mf_db: str = "http://multiomics-int.cs.bham.ac.uk", prefix_inp: str = ""):
 
     if os.path.isfile(mf_db):
         db = DbMolecularFormulaeLocal(config_db=mf_db)
@@ -352,7 +356,7 @@ def annotate_mf(spectral_trees, db_out, ppm, adducts=["[M+H]+"], rules=True, mf_
     return spectral_trees
 
 
-def mf_tree(G, path_db, max_mslevel, prefix):
+def mf_tree(G: nx.OrderedDiGraph, path_db: str, max_mslevel: int, prefix: str):
 
     conn = sqlite3.connect(path_db)
     cursor = conn.cursor()
@@ -388,7 +392,7 @@ def mf_tree(G, path_db, max_mslevel, prefix):
         GG = G.copy()
         atoms = ["C", "H", "N", "O", "P", "S"]
         for record in records:
-            record = filter(lambda x: x != None, record)
+            record = filter(lambda x: x is not None, record)
             for i in range(0, len(record), 6):
                 ids = record[i:i + 6]
                 cursor.execute("""
@@ -429,7 +433,7 @@ def mf_tree(G, path_db, max_mslevel, prefix):
     return mft
 
 
-def filter_mf(trees, path_db):
+def filter_mf(trees: Sequence[nx.OrderedDiGraph], path_db: str):
 
     #http://www.sqlstyle.guide/
 
@@ -532,7 +536,7 @@ def filter_mf(trees, path_db):
         """.format(prefix))
         max_mslevel = cursor.fetchone()[0]
 
-        if max_mslevel == None: max_mslevel = 1
+        if max_mslevel is None: max_mslevel = 1
 
         for loop in range(1, max_mslevel + 1):
 
@@ -704,14 +708,14 @@ def filter_mf(trees, path_db):
             """.format(prefix))
             improvement.append(cursor.fetchone()[0])
 
-        print "MF AFTER CONSTRAINS: ", ", ".join(map(str, improvement))
+        print("MF AFTER CONSTRAINS: ", ", ".join(map(str, improvement)))
         annotated_trees.extend(mf_tree(G, path_db, max_mslevel, prefix))
 
     conn.close()
     return annotated_trees
 
 
-def print_formula(atom_counts):
+def print_formula(atom_counts: dict):
     formula_out = ""
 
     order_atoms = ["C", "H", "N", "O", "P", "S"]
@@ -727,7 +731,7 @@ def print_formula(atom_counts):
     return formula_out
 
 
-def rank_mf(trees):
+def rank_mf(trees: Sequence[nx.OrderedDiGraph]):
 
     columns = ["TreeID", 'GroupID', 'MolecularFormulaID', 'MolecularFormula', 'Adduct', 'Rank', 'TotalRanks', 'RankedEqual', 'Trees', 'NeutralLossesExplained']
     df = pd.DataFrame(columns=columns)

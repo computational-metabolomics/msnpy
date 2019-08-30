@@ -1,9 +1,19 @@
 
+from typing import Sequence
 import networkx as nx
 from networkx.readwrite import json_graph
 
 
-def save_trees(trees, filename, format="json"):
+def save_trees(trees: Sequence[nx.OrderedDiGraph], filename: str, format: str = "json"):
+
+    """
+
+    :param trees:
+    :param filename:
+    :param format:
+    :return:
+    """
+
     with open(filename, "w") as out:
         for t in trees:
             tc = t.copy()  # required to not update Graph
@@ -28,21 +38,28 @@ def save_trees(trees, filename, format="json"):
                 raise ValueError("Incorrect format - json or gml")
 
 
-def load_trees(filename, format="json"):
+def load_trees(filename: str, format: str = "json"):
 
-    def sort_graph(G):
+    """
+
+    :param filename:
+    :param format:
+    :return:
+    """
+
+    def sort_graph(G_):
         G_sort = nx.OrderedDiGraph()
-        G_sort.graph["id"] = G.graph["id"]
-        G_sort.add_nodes_from(sorted(G.nodes(data=True), key=lambda x: x[1]['order']))
-        G_sort.add_edges_from(sorted(G.edges(data=True), key=lambda x: x[2]['order']))
+        G_sort.graph["id"] = G_.graph["id"]
+        G_sort.add_nodes_from(sorted(G_.nodes(data=True), key=lambda x: x[1]['order']))
+        G_sort.add_edges_from(sorted(G_.edges(data=True), key=lambda x: x[2]['order']))
         return G_sort
 
-    def remove_attr(G, atr):
-        for n in G.nodes():
-            del G.node[n][atr]
-        for e in G.edges():
-            del G[e[0]][e[1]][atr]
-        return G
+    def remove_attr(G_, atr):
+        for n_ in G_.nodes():
+            del G_.node[n_][atr]
+        for e in G_.edges():
+            del G_[e[0]][e[1]][atr]
+        return G_
 
     with open(filename, "r") as inp:
         graphs = []
@@ -65,12 +82,29 @@ def load_trees(filename, format="json"):
             raise ValueError("Incorrect graph format - json or gml")
 
 
-def save_groups(groups, filename, format="json"):
+def save_groups(groups: list, filename: str, format: str = "json"):
+
+    """
+
+    :param groups:
+    :param filename:
+    :param format:
+    :return:
+    """
+
     save_trees(trees=groups, filename=filename, format=format)
     return
 
 
-def load_groups(filename, format="json"):
-    return load_trees(filename=filename, format=format)
+def load_groups(filename: str, format: str = "json"):
 
+    """
+
+    :param filename:
+    :param format:
+    :return:
+    :rtype: list of NetworkX Graphs
+    """
+
+    return load_trees(filename=filename, format=format)
 

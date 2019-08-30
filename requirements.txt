@@ -1,5 +1,7 @@
-dimspy
-networkx
+requests
+numpy
 mysql-connector
 pandas
 plotly
+networkx
+dimspy

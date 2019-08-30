@@ -21,7 +21,7 @@ from dimspy.portals import hdf5_portal
 from msnpy import __version__
 
 
-def map_delimiter(delimiter):
+def map_delimiter(delimiter): # pragma: no cover
     seps = {"comma": ",", "tab": "\t"}
     if delimiter in seps:
         return seps[delimiter]
@@ -29,7 +29,7 @@ def map_delimiter(delimiter):
         return delimiter
 
 
-def main():
+def main(): # pragma: no cover
 
     print("Executing msnpy version %s." % __version__)
 

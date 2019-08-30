@@ -1,9 +1,12 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 import os
 import re
-import logging
+import warnings
 import operator
 import collections
+from typing import Sequence
 import networkx as nx
 import numpy as np
 import h5py
@@ -11,13 +14,21 @@ from dimspy.portals import mzml_portal
 from dimspy.portals import hdf5_portal
 from dimspy.portals import thermo_raw_portal
 from dimspy.process.replicate_processing import average_replicate_scans
+from dimspy.models.peaklist import PeakList
 from dimspy.process.peak_filters import filter_attr
 from dimspy.process.peak_filters import filter_ringing
 from dimspy.process.peak_filters import filter_mz_ranges
-from filters import filter_ms1_by_injection_time, filter_by_replicates
+from .filters import validate_injection_time_ms1, filter_by_replicates, filter_by_isolation
 
 
-def hdf5_peaklists_to_txt(filename, path_out, delimiter="\t"):
+def hdf5_peaklists_to_txt(filename: str, path_out: str, delimiter:str = "\t"):
+
+    """
+
+    :param filename:
+    :param path_out:
+    :param delimiter:
+    """
 
     if not os.path.isfile(filename):
         raise IOError('HDF5 database [%s] does not exist' % filename)
@@ -35,13 +46,13 @@ def hdf5_peaklists_to_txt(filename, path_out, delimiter="\t"):
             with open(os.path.join(path_out, os.path.splitext(fn)[0] + ".txt"), "w") as pk_out:
                 for i, pl in enumerate(obj):
                     if fn in pl.ID:
-                        pl.add_attribute("window", pl.full_shape[0] * [sub_ids[i]], flagged_only=False, on_index=3)
+                        pl.add_attribute("event", pl.full_shape[0] * [sub_ids[i]], flagged_only=False, on_index=3)
                         str_out = pl.to_str(delimiter=delimiter)
                         if i > 0:
                             pk_out.write(str_out[str_out.index('\n'):])
                         else:
                             pk_out.write(str_out)
-                        pl.drop_attribute("window")
+                        pl.drop_attribute("event")
     else:
         for pl in obj:
             with open(os.path.join(path_out, os.path.splitext(pl.ID)[0] + ".txt"), "w") as pk_out:
@@ -49,7 +60,17 @@ def hdf5_peaklists_to_txt(filename, path_out, delimiter="\t"):
     return
 
 
-def mz_tolerance(mz, tol, unit="ppm"):
+def mz_tolerance(mz: float, tol: float, unit: str = "ppm"):
+
+    """
+
+    :param mz: mz value
+    :param tol: tolerance
+    :param unit: ppm or da
+    :return:
+    :rtype: float
+    """
+
     if unit.lower() == "ppm":
         return mz * (1 - (float(tol) * 0.000001)), mz * (1 + (float(tol) * 0.000001))
     elif unit.lower() == "da":
@@ -58,117 +79,157 @@ def mz_tolerance(mz, tol, unit="ppm"):
         raise ValueError("Incorrect unit type (options: ppm or da)")
 
 
-def create_graphs_from_scan_ids(scan_dependents, scan_events, injection_times):
-    # Create Directed Graph from scan dependent relationships
-    Gs = []
+def create_graphs_from_scan_ids(scan_dependents: list, scan_events: dict, ion_injection_times: dict):
+
+    """
+    Create Directed Graph from scan dependent relationships
+
+    :param scan_dependents:
+    :param scan_events:
+    :param ion_injection_times:
+    :return:
+    :rtype:
+    """
+
+    graphs = []
     G = nx.OrderedDiGraph()
     G.add_edges_from(sorted(list(scan_dependents), key=operator.itemgetter(0, 1)))
-    for subgraph in nx.weakly_connected_component_subgraphs(G):
+    for subgraph in [G.subgraph(c) for c in nx.weakly_connected_components(G)]:
 
         edges = sorted(list(subgraph.edges()), key=operator.itemgetter(0, 1))
         nodes = sorted(subgraph.nodes())
 
-        replicates_within = collections.OrderedDict()
-        its = collections.OrderedDict()
+        replicates_within, its =  collections.OrderedDict(), collections.OrderedDict()
         for n in nodes:
             replicates_within.setdefault(scan_events[n], []).append(n)
-            its.setdefault(scan_events[n], []).append(injection_times[n])
+            its.setdefault(scan_events[n], []).append(ion_injection_times[n])
 
         G = nx.OrderedDiGraph()
-        G.add_nodes_from([(rw, {"scanids": replicates_within[rw], "mslevel": rw.count("@") + 1, "injectiontimes": its[rw]}) for rw in replicates_within])
+        for rw in replicates_within:
+
+            scan_info = [(None, None, 0.0)]
+            scan_info.extend(re.findall(r'([\w\.-]+)@([a-zA-Z]+)(\d+\.\d+)', rw))
+
+            G.add_node(rw,
+                       scanids=replicates_within[rw],
+                       mslevel=len(scan_info),
+                       coltype=scan_info[-1][1],
+                       colenergy=float(scan_info[-1][2]),
+                       injectiontimes=its[rw],
+                       flag=True)
         G.add_edges_from([(scan_events[e[0]], scan_events[e[1]]) for e in edges])
+        graphs.append(G)
 
-        h = list(G.nodes())[0]
-        if h.count("@") > 0:
-            print Warning("Scan dependent missing for {} {}".format(h, nodes))
-        else:
-            Gs.append(G)
-
-    return Gs
+    return graphs
 
 
-def merge_ms1_scans(Gs):
+def merge_ms1_scans(graphs: list):
+
+    """
+
+    :param graphs:
+    :return:
+    :rtype:
+    """
+
     scan_ids = collections.OrderedDict()
-    for G in Gs:
-        edges = list(G.edges())
-        scan_ids.setdefault(edges[0][0], []).extend(G.node[edges[0][0]]["scanids"])
-    for G in Gs:
-        edges = list(G.edges())
-        G.node[edges[0][0]]["scanids"] = scan_ids[edges[0][0]]
-    return Gs
+    for G in graphs:
+        root = list(nx.topological_sort(G))[0]
+        scan_ids.setdefault(root, []).extend(G.node[root]["scanids"])
+    for G in graphs:
+        root = list(nx.topological_sort(G))[0]
+        G.node[root]["scanids"] = scan_ids[root]
+    return graphs
 
 
-def create_templates(G_all, nh):
-    # Create a 'master' graph that include all the experimental trees
-    # Loop through all the subgraphs/graphs
+def create_templates(graphs: list, nh: int):
 
-    G_temps = []
+    """
+    Create a 'master' graph that include all the experimental trees
+    Loop through all the subgraphs/graphs
 
-    for G in G_all:
+    :param graphs:
+    :param nh:
+    :return:
+    :rtype:
+    """
+
+    templates = []
+    for G in graphs:
         # Validate if the root node represents a scan event without fragmentation
         # Check if a subgraph, with a user defined number of nodes, exist in the list of templates
         # The nodes (scan events) are matched based on the order they have been collected
-        if list(G.edges())[0:nh - 1] not in [list(g.edges())[0:nh - 1] for g in G_temps]:
+        if list(G.edges())[0:nh - 1] not in [list(g.edges())[0:nh - 1] for g in templates]:
             # Create a initial template with a particular number of nodes / edges
-            G_temp = nx.OrderedDiGraph()
-            G_temp.add_edges_from(list(G.edges())[0:nh - 1])
-            for n in G_temp.nodes():
-                G_temp.node[n]["mslevel"] = n.count("@") + 1
-                G_temp.node[n]["scanids"] = list()
-                G_temp.node[n]["template"] = True
-            # Add template to list of templates
-            G_temps.append(G_temp)
-    return G_temps
+            Gt = nx.OrderedDiGraph()
+            Gt.add_edges_from(list(G.edges())[0:nh - 1])
+            for n in Gt.nodes():
+                scan_info = re.findall(r'([\w\.-]+)@([a-zA-Z]+)(\d+\.\d+)', n)
+                Gt.node[n]["scanids"] = list()
+                Gt.node[n]["mslevel"] = len(scan_info) + 1
+                if len(scan_info) == 0:
+                    Gt.node[n]["coltype"] = None
+                    Gt.node[n]["colenergy"] = None
+                else:
+                    Gt.node[n]["coltype"] = scan_info[-1][1]
+                    Gt.node[n]["colenergy"] = float(scan_info[-1][2])
+                Gt.node[n]["template"] = True
+                Gt.node[n]["flag"] = True
+            templates.append(Gt)
+    return templates
 
 
-def match_templates(G_all, G_temps, nh):
-    g_sub = [list(g.edges())[0:nh - 1] for g in G_temps]
-    for G in G_all:
+def group_by_template(graphs: list, templates: list):
 
-        if g_sub.count(list(G.edges())[0:nh - 1]) > 1:
-            raise IndexError("Too many templates match")
+    """
 
-        i = g_sub.index(list(G.edges())[0:nh - 1])
+    :param graphs:
+    :param templates:
+    :return:
+    :rtype:
+    """
 
-        for e in G.edges():
-            for j in range(0, 2):
-                if e[j] not in G_temps[i].nodes():
-                    G_temps[i].add_node(e[j], scanids=G.node[e[j]]["scanids"], mslevel=G.node[e[j]]["mslevel"])
-                elif G.node[e[j]]["scanids"] not in G_temps[i].node[e[j]]["scanids"]:
-                    for scan_id in G.node[e[j]]["scanids"]:
-                        if scan_id not in G_temps[i].node[e[j]]["scanids"]:
-                            G_temps[i].node[e[j]]["scanids"].append(scan_id)
-            if e not in G_temps[i].edges():
-                G_temps[i].add_edge(e[0], e[1])
-    return G_temps
+    master_graphs = [G.copy() for G in templates]
+    for G in graphs:
+        for Gt in templates:
+            if G.subgraph(Gt.nodes()).number_of_edges() == Gt.number_of_edges() and \
+                          sorted(G.subgraph(Gt.nodes()).nodes()) == sorted(Gt.nodes()):
 
-
-def match_templates_v2(G_all, G_temps):
-
-    g_sub = [G.copy() for G in G_temps]
-    
-    for G in G_all:
-
-        for Gt in g_sub:
-            if G.subgraph(Gt.nodes()).number_of_edges() == Gt.number_of_edges():
-
-                i = g_sub.index(Gt)
+                i = templates.index(Gt)
 
                 for e in G.edges():
                     for j in range(0, 2):
-                        if e[j] not in G_temps[i].nodes():
-                            G_temps[i].add_node(e[j], scanids=G.node[e[j]]["scanids"], mslevel=G.node[e[j]]["mslevel"],
-                                                template=False)
+                        # update master_graphs add nodes/edges or update scanids
+                        if e[j] not in master_graphs[i].nodes():
+                            master_graphs[i].add_node(e[j],
+                                                      scanids=G.node[e[j]]["scanids"],
+                                                      mslevel=G.node[e[j]]["mslevel"],
+                                                      coltype=G.node[e[j]]["coltype"],
+                                                      colenergy=G.node[e[j]]["colenergy"],
+                                                      flag=G.node[e[j]]["flag"],
+                                                      template=False)
                         else:
                             for scan_id in G.node[e[j]]["scanids"]:
-                                if scan_id not in G_temps[i].node[e[j]]["scanids"]:
-                                    G_temps[i].node[e[j]]["scanids"].append(scan_id)
-                    if e not in G_temps[i].edges():
-                        G_temps[i].add_edge(e[0], e[1])
-    return G_temps
+                                if scan_id not in master_graphs[i].node[e[j]]["scanids"]:
+                                    master_graphs[i].node[e[j]]["scanids"].append(scan_id)
+
+                    if e not in master_graphs[i].edges():
+                        master_graphs[i].add_edge(e[0], e[1])
+
+    return master_graphs
 
 
-def assign_precursor(peaklist, header_frag, tolerance=0.5):
+def assign_precursor(peaklist: PeakList, header_frag: str, tolerance: float = 0.5):
+
+    """
+
+
+    :param peaklist:
+    :param header_frag:
+    :param tolerance:
+    :return:
+    :rtype:
+    """
 
     prec_at_energy = re.findall(r'([\w\.-]+)@([\w\.-]+)', header_frag)
     subset = []
@@ -183,7 +244,21 @@ def assign_precursor(peaklist, header_frag, tolerance=0.5):
         return None, None
 
 
-def group_scans(filename, nh=2, min_replicates=1, report=None, max_injection_time=None, merge_ms1=False, split=False):
+def group_scans(filename: str, nh: int = 2, min_replicates: int = 1, report: str = None,
+                max_injection_time: float = None, merge_ms1: bool = False, split: bool = False, remove: bool = True):
+
+    """
+
+    :param filename:
+    :param nh:
+    :param min_replicates:
+    :param report:
+    :param max_injection_time:
+    :param merge_ms1:
+    :param split:
+    :param remove:
+    :return:
+    """
 
     if filename.lower().endswith(".mzml"):
         d = mzml_portal.Mzml(filename)
@@ -194,66 +269,101 @@ def group_scans(filename, nh=2, min_replicates=1, report=None, max_injection_tim
 
     si = d.scan_ids()
     sd = d.scan_dependents()
-    sit = d.injection_times()
+    sit = d.ion_injection_times()
 
     graphs = create_graphs_from_scan_ids(sd, si, sit)
+
+    for G in list(graphs):
+        h = list(nx.topological_sort(G))[0]
+        if G.node[h]["mslevel"] > 1:
+            warnings.warn("MS1 scan missing. The following scans ids have been removed: {}".format([G.node[n]["scanids"] for n in G.nodes()]))
+            graphs.remove(G)
+
     if max_injection_time:
-        graphs = [G for G in graphs if filter_ms1_by_injection_time(G, max_injection_time)]
+        for G in list(graphs):
+            if not validate_injection_time_ms1(G, max_injection_time):
+                scan_id_ms1 = G.nodes[list(nx.topological_sort(G))[0]]["scanids"]
+                warnings.warn("Injection time MS1 {} > Maximum injection time for MS1. The following scan ids have been removed: {}".format(scan_id_ms1, [G.node[n]["scanids"] for n in G.nodes()]))
+                graphs.remove(G)
 
-    if split is False:
+    if not split:
         templates = create_templates(graphs, nh)
-        graphs_grouped = match_templates(graphs, templates, nh)
-        graphs_grouped_v2 = match_templates_v2(graphs, templates)
-        print graphs_grouped_v2 == graphs_grouped
-        #raw_input()
+        groups = group_by_template(graphs, templates)
     else:
-        graphs_grouped = graphs
+        groups = graphs
+        for G in groups: nx.set_node_attributes(G, False, 'template')
 
-    if merge_ms1:
-        graphs_grouped = merge_ms1_scans(graphs_grouped)
-
-    graphs_grouped = [filter_by_replicates(G, min_replicates) for G in graphs_grouped]
-
-    for i, G in enumerate(graphs_grouped):
+    for i, G in enumerate(groups):
         G.graph['id'] = i + 1
 
+    if merge_ms1:
+        # Merge all MS1 scans across a run/sample
+        groups = merge_ms1_scans(groups)
+
+    # flag attribute set to False if not pass filter
+    groups = [filter_by_replicates(G, min_replicates) for G in groups]
+    groups = [filter_by_isolation(G) for G in groups]
+
     if report is not None:
-        out = open(report, "w")
-        out.write("tree_id\tflag\ttemplate\tn\tincluded\n")
 
-    valid_graphs = []
-    for i, G in enumerate(graphs_grouped):
+        with open(report, "w") as out:
+            out.write("tree_id\tevent\ttemplate\tscan_ids\tscans\tflag\n")
 
-        e = list(G.edges(data=True))[0]  # MS1 to MS2
-        flag = int((G.node[e[0]]["scanids"]) > 0 and len(G.node[e[1]]["scanids"]) > 0)
+            for G in groups:
+                if report is not None:
+                    for n in G.nodes(data=True):
+                        out.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(G.graph['id'],
+                                                                    n[0],
+                                                                    int(n[1]["template"]),
+                                                                    n[1]["scanids"],
+                                                                    len(n[1]["scanids"]),
+                                                                    int(n[1]["flag"])))
 
-        if report is not None:
-            scan_events = [n[0] for n in G.nodes(data=True) if len(n[1]["scanids"]) > 0]
-            if not scan_events:
-                scan_events = None
-                n_scans = 0
-            else:
-                n_scans = len(scan_events)
+    if remove:
+        for G in list(groups):
+            h = list(nx.topological_sort(G))[0]
+            if not G.node[h]["flag"]:
+                groups.remove(G)
+                continue
 
-            out.write("{}\t{}\t{}\t{}\t{}\n".format(G.graph['id'], flag, list(G.nodes())[0:nh], n_scans, scan_events))
+            for n in G.nodes(data=True):
+                if not n[1]["flag"]:
+                    G.remove_node(n[0])
+                else:
+                    del n[1]['flag']
 
-        for n in G.nodes(data=True):
-            if len(n[1]["scanids"]) == 0:
-                G.remove_node(n[0])
+    if len(groups) == 0:
+        warnings.warn("No scan events remaining after filtering. Remove MS data file or alter parameters.")
 
-        if flag:
-            valid_graphs.append(G)
-
-    if len(valid_graphs) == 0:
-        raise IOError("No scan events remaining after filtering. Remove file from dataset or alter parameters.")
-
-    return valid_graphs
+    return groups
 
 
-def process_scans(filename, groups, function_noise, snr_thres, ppm, min_fraction=None, rsd_thres=None, normalise=False,
-                  ringing_thres=None, exclusion_list={}, skip_ms1=False, report=None, block_size=2000, ncpus=None):
-    print
-    print os.path.basename(filename)
+def process_scans(filename: str, groups: list, function_noise: str, snr_thres: float, ppm: float,
+                  min_fraction: float = None, rsd_thres: float = None, normalise: bool = False,
+                  ringing_thres: float = None, exclusion_list: dict = {}, report: str = None,
+                  block_size: int = 5000, ncpus: int = None):
+
+    """
+
+    :param filename:
+    :param groups:
+    :param function_noise:
+    :param snr_thres:
+    :param ppm:
+    :param min_fraction:
+    :param rsd_thres:
+    :param normalise:
+    :param ringing_thres:
+    :param exclusion_list:
+    :param report:
+    :param block_size: number of peaks in each clustering block.
+    :param ncpus: number of CPUs for parallel clustering. Default = None, indicating using as many as possible
+    :return: List of (average) PeakList objects (DIMSpy)
+    :rtype: Sequence[PeakList]
+    """
+
+    print()
+    print(os.path.basename(filename))
 
     if filename.lower().endswith(".mzml"):
         run = mzml_portal.Mzml(filename)
@@ -289,9 +399,9 @@ def process_scans(filename, groups, function_noise, snr_thres, ppm, min_fraction
 
     for G in groups:
         nodes = G.nodes(data=True)
-        print "Processing scans...."
-        print "\n".join(map(str, [n[0] for n in nodes]))
-        print
+        print("Processing scans....")
+        print("\n".join(map(str, [n[0] for n in nodes])))
+        print()
         for n in nodes:
             pls_scans = [run.peaklist(scan_id, function_noise=function_noise) for scan_id in n[1]["scanids"]]
             # Check for MS1 scan available with the same scan_ids (grouped) to avoid redundant processing
@@ -316,7 +426,7 @@ def process_scans(filename, groups, function_noise, snr_thres, ppm, min_fraction
                 nscans, n_peaks, median_rsd = len(pls_scans), 0, "NA"
 
                 if sum(pl.shape[0] for pl in pls_scans) == 0:
-                    logging.warning("No scan data available for {}".format(n[0]))
+                    warnings.warn("No scan data available for {}".format(n[0]))
                 else:
                     if len(pls_scans) == 1:
                         pl_avg = average_replicate_scans("{}#{}:{}".format(os.path.basename(filename), G.graph['id'], n[0]), pls_scans, ppm, min_fraction, None, rsd_on_attr, block_size, ncpus)
@@ -342,10 +452,22 @@ def process_scans(filename, groups, function_noise, snr_thres, ppm, min_fraction
 
         if len(pls_avg) == 0:
             raise IOError("No peaks remaining after filtering. Remove file from Study (filelist).")
+
+    if report is not None:
+        out.close()
+
     return pls_avg
 
 
-def create_spectral_trees(trees, peaklists):
+def create_spectral_trees(trees: Sequence[nx.OrderedDiGraph], peaklists: Sequence[PeakList]):
+
+    """
+
+    :param trees: list of NetworkX graphs
+    :param peaklists: list of PeakList objects
+    :return:
+    :rtype: Sequence[nx.OrderedDiGraph]
+    """
 
     spectral_trees = []
 
@@ -359,7 +481,7 @@ def create_spectral_trees(trees, peaklists):
             header_prec = "{}:{}".format(G.graph["id"], edge[0])
             if len(G.node[edge[0]]["scanids"]) == 0 or header_prec not in headers:
                 if " ms " in header_prec:
-                    logging.warning("Cannot create a spectral tree without precursor from {}".format(header_prec))
+                    warnings.warn("Cannot create a spectral tree without precursor from {}".format(header_prec))
                     break
                 continue
 
@@ -368,7 +490,7 @@ def create_spectral_trees(trees, peaklists):
 
             if not mz_prec:
                 if " ms " in header_prec:
-                    logging.warning("Cannot create a spectral tree without precursor from {}".format(header_prec))
+                    warnings.warn("Cannot create a spectral tree without precursor from {}".format(header_prec))
                     break
                 continue
             else:
@@ -390,4 +512,3 @@ def create_spectral_trees(trees, peaklists):
 
         spectral_trees.append(GG)
     return spectral_trees
-
