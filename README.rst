@@ -4,14 +4,14 @@ MSnPy
 
 Python package to process and annotate MSn fragmentation data
 
-- **Documentation:** https://computational-metabolomics.github.io/msnpy
+- **Documentation:** https://msnpy.readthedocs.io/en/latest
 - **Source:** https://github.com/computational-metabolomics/msnpy
 - **Bug reports:** https://github.com/computational-metabolomics/msnpy/issues
 
 Installation
 ------------
-See the `Installation page <https://computational-metabolomics.github.io/msnpy/introduction.html#installation>`__ of
-the `online documentation <https://computational-metabolomics.github.io/msnpy/>`__.
+See the `Installation page <https://msnpy.readthedocs.io/en/latest/introduction.html#installation>`__ of
+the `online documentation <https://msnpy.readthedocs.io/en/latest>`__.
 
 
 Command line
@@ -31,7 +31,7 @@ will help you to make the PR if you are new to `git`.
 
 Developers & Contributors
 -------------------------
- - Ralf J. M. Weber (r.j.weber@bham.ac.uk) - `University of Birmingham (UK) <http://www.birmingham.ac.uk/index.aspx>`_
+ - Ralf J. M. Weber (r.j.weber@bham.ac.uk) - `University of Birmingham (UK) <https://www.birmingham.ac.uk/schools/biosciences/staff/profile.aspx?ReferenceId=156564&Name=dr-ralf-weber>`_
  - Thomas N. Lawson (tnl495@bham.ac.uk) - `University of Birmingham (UK) <http://www.birmingham.ac.uk/index.aspx>`_
 
 
