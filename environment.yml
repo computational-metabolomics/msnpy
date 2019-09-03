@@ -1,0 +1,12 @@
+name: msnpy
+channels:
+  - conda-forge
+  - bioconda
+  - computational-metabolomics
+dependencies:
+ - python=3.7
+ - dimspy
+ - networkx
+ - mysql-connector-python
+ - pandas
+ - plotly

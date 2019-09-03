@@ -10,7 +10,7 @@ import numpy as np
 import re
 import os
 
-def get_mf_details(pd):
+def get_mf_details(pd: dict):
 
     mf_details_mass = []
     mf_details_adduct = []
