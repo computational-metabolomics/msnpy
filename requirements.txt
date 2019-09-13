@@ -1,7 +1,3 @@
-requests
-numpy
-mysql-connector-python
-pandas
-plotly
-networkx
 dimspy
+requests
+networkx ==2.3

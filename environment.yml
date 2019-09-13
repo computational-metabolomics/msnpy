@@ -1,4 +1,4 @@
-name: msnpy
+name: msnpy-test
 channels:
   - conda-forge
   - bioconda
@@ -6,7 +6,5 @@ channels:
 dependencies:
  - python=3.7
  - dimspy
- - networkx
- - mysql-connector-python
- - pandas
- - plotly
+ - networkx ==2.3
+ - requests
