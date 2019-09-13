@@ -14,11 +14,11 @@ def validate_injection_time_ms1(G: nx.OrderedDiGraph, max_injection_time: float,
     """
 
     h = list(nx.topological_sort(G))[0]
-    if len(G.node[h]["injectiontimes"]) > 1:
+    if len(G.node[h]["ioninjectiontimes"]) > 1:
         raise ValueError("Validation only valid for trees no replication for MS1")
     if label in h:
         # should only have a single scanid
-        if G.node[h]["injectiontimes"][0] > max_injection_time:
+        if G.node[h]["ioninjectiontimes"][0] > max_injection_time:
             return False
         else:
             return True

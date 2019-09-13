@@ -4,7 +4,7 @@ import networkx as nx
 from networkx.readwrite import json_graph
 
 
-def save_trees(trees: Sequence[nx.OrderedDiGraph], filename: str, format: str = "json"):
+def save_trees(trees: Sequence[nx.classes.ordered.OrderedDiGraph], filename: str, format: str = "json"):
 
     """
 
@@ -28,12 +28,12 @@ def save_trees(trees: Sequence[nx.OrderedDiGraph], filename: str, format: str = 
                     if "mf" in tc[n[0]][n[1]]:
                         tc[n[0]][n[1]]["mf"] = str(tc[n[0]][n[1]]["mf"])
                 for i, n in enumerate(tc.nodes()):
-                    if "scanids" in tc.node[n]:
-                        tc.node[n]["scanids"] = str(tc.node[n]["scanids"])
-                    if "mf" in tc.node[n]:
-                        tc.node[n]["mf"] = str(tc.node[n]["mf"])
+                    for k in ["scanids", "ioninjectiontimes", "mf", "coltype", "template"]:
+                        if k in tc.node[n]:
+                            tc.node[n][k] = str(tc.node[n][k])
                 for line in nx.readwrite.generate_gml(tc):
-                    out.write((line + "\n").encode('ascii'))
+                    out.write((line + "\n"))
+
             else:
                 raise ValueError("Incorrect format - json or gml")
 
@@ -72,17 +72,19 @@ def load_trees(filename: str, format: str = "json"):
             for gml_str in inp.read().split("graph")[1:]:
                 G = nx.readwrite.parse_gml("graph" + gml_str)
                 for n in G.nodes():
-                    if "scanids" in G.node[n]:
-                        G.node[n]["scanids"] = eval(G.node[n]["scanids"])
-                    if "mf" in G.node[n]:
-                        G.node[n]["mf"] = eval(G.node[n]["mf"])
+                    if "coltype" in G.node[n]:
+                        if G.node[n]["coltype"] == "None":
+                            G.node[n]["coltype"] = None
+                    for k in ["scanids", "ioninjectiontimes", "mf", "template"]:
+                        if k in G.node[n]:
+                            G.node[n][k] = eval(G.node[n][k])
                 graphs.append(remove_attr(sort_graph(G), "order"))
             return graphs
         else:
             raise ValueError("Incorrect graph format - json or gml")
 
 
-def save_groups(groups: list, filename: str, format: str = "json"):
+def save_groups(groups: Sequence[nx.classes.ordered.OrderedDiGraph], filename: str, format: str = "json"):
 
     """
 

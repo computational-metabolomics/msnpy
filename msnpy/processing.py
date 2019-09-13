@@ -60,7 +60,7 @@ def hdf5_peaklists_to_txt(filename: str, path_out: str, delimiter:str = "\t"):
     return
 
 
-def mz_tolerance(mz: float, tol: float, unit: str = "ppm"):
+def mz_tol(mz: float, tol: float, unit: str = "ppm"):
 
     """
 
@@ -77,6 +77,18 @@ def mz_tolerance(mz: float, tol: float, unit: str = "ppm"):
         return mz - float(tol), mz + float(tol)
     else:
         raise ValueError("Incorrect unit type (options: ppm or da)")
+
+
+def mz_pair_diff_tol(lower_mz: float, upper_mz: float, tol: float, unit: str = "ppm"):
+    mz_diff = upper_mz - lower_mz
+    lmt = mz_tol(lower_mz, tol, unit)[1] - lower_mz
+    hmt = mz_tol(upper_mz, tol, unit)[1] - upper_mz
+    total_tol = lmt + hmt
+
+    if mz_diff - total_tol < 0.0:
+        return 0.0, mz_diff + total_tol
+    else:
+        return mz_diff - total_tol, mz_diff + total_tol
 
 
 def create_graphs_from_scan_ids(scan_dependents: list, scan_events: dict, ion_injection_times: dict):
@@ -115,7 +127,7 @@ def create_graphs_from_scan_ids(scan_dependents: list, scan_events: dict, ion_in
                        mslevel=len(scan_info),
                        coltype=scan_info[-1][1],
                        colenergy=float(scan_info[-1][2]),
-                       injectiontimes=its[rw],
+                       ioninjectiontimes=its[rw],
                        flag=True)
         G.add_edges_from([(scan_events[e[0]], scan_events[e[1]]) for e in edges])
         graphs.append(G)
@@ -123,7 +135,7 @@ def create_graphs_from_scan_ids(scan_dependents: list, scan_events: dict, ion_in
     return graphs
 
 
-def merge_ms1_scans(graphs: list):
+def merge_ms1_scans(graphs: Sequence[nx.classes.ordered.OrderedDiGraph]):
 
     """
 
@@ -131,18 +143,19 @@ def merge_ms1_scans(graphs: list):
     :return:
     :rtype:
     """
-
     scan_ids = collections.OrderedDict()
+    ioninjectiontimes = collections.OrderedDict()
     for G in graphs:
         root = list(nx.topological_sort(G))[0]
         scan_ids.setdefault(root, []).extend(G.node[root]["scanids"])
+        ioninjectiontimes.setdefault(root, []).extend(G.node[root]["ioninjectiontimes"])
     for G in graphs:
-        root = list(nx.topological_sort(G))[0]
         G.node[root]["scanids"] = scan_ids[root]
+        G.node[root]["ioninjectiontimes"] = ioninjectiontimes[root]
     return graphs
 
 
-def create_templates(graphs: list, nh: int):
+def create_templates(graphs: Sequence[nx.classes.ordered.OrderedDiGraph], nh: int):
 
     """
     Create a 'master' graph that include all the experimental trees
@@ -166,10 +179,11 @@ def create_templates(graphs: list, nh: int):
             for n in Gt.nodes():
                 scan_info = re.findall(r'([\w\.-]+)@([a-zA-Z]+)(\d+\.\d+)', n)
                 Gt.node[n]["scanids"] = list()
+                Gt.node[n]["ioninjectiontimes"] = list()
                 Gt.node[n]["mslevel"] = len(scan_info) + 1
                 if len(scan_info) == 0:
                     Gt.node[n]["coltype"] = None
-                    Gt.node[n]["colenergy"] = None
+                    Gt.node[n]["colenergy"] = 0.0
                 else:
                     Gt.node[n]["coltype"] = scan_info[-1][1]
                     Gt.node[n]["colenergy"] = float(scan_info[-1][2])
@@ -179,7 +193,7 @@ def create_templates(graphs: list, nh: int):
     return templates
 
 
-def group_by_template(graphs: list, templates: list):
+def group_by_template(graphs: Sequence[nx.classes.ordered.OrderedDiGraph], templates: list):
 
     """
 
@@ -206,12 +220,17 @@ def group_by_template(graphs: list, templates: list):
                                                       mslevel=G.node[e[j]]["mslevel"],
                                                       coltype=G.node[e[j]]["coltype"],
                                                       colenergy=G.node[e[j]]["colenergy"],
+                                                      ioninjectiontimes=G.node[e[j]]["ioninjectiontimes"],
                                                       flag=G.node[e[j]]["flag"],
                                                       template=False)
                         else:
-                            for scan_id in G.node[e[j]]["scanids"]:
+
+                            for k, scan_id in enumerate(G.node[e[j]]["scanids"]):
                                 if scan_id not in master_graphs[i].node[e[j]]["scanids"]:
                                     master_graphs[i].node[e[j]]["scanids"].append(scan_id)
+                                    if "ioninjectiontimes" in master_graphs[i].node[e[j]]:
+                                        ijt = G.node[e[j]]["ioninjectiontimes"][k]
+                                        master_graphs[i].node[e[j]]["ioninjectiontimes"].append(ijt)
 
                     if e not in master_graphs[i].edges():
                         master_graphs[i].add_edge(e[0], e[1])
@@ -232,6 +251,8 @@ def assign_precursor(peaklist: PeakList, header_frag: str, tolerance: float = 0.
     """
 
     prec_at_energy = re.findall(r'([\w\.-]+)@([\w\.-]+)', header_frag)
+    if not prec_at_energy:
+        return (None, None)
     subset = []
     for i, mz in enumerate(peaklist.mz):
         if mz >= float(prec_at_energy[-1][0]) - tolerance and mz <= float(prec_at_energy[-1][0]) + tolerance:
@@ -239,12 +260,12 @@ def assign_precursor(peaklist: PeakList, header_frag: str, tolerance: float = 0.
 
     if len(subset) > 0:
         s = sorted(subset, key=lambda x: x[1])[-1]
-        return s[0], s[1]
+        return (s[0], s[1])
     else:
-        return None, None
+        return (None, None)
 
 
-def group_scans(filename: str, nh: int = 2, min_replicates: int = 1, report: str = None,
+def group_scans(filename: str, nh: int = 2, min_replicates: int or Sequence[int] = 1, report: str = None,
                 max_injection_time: float = None, merge_ms1: bool = False, split: bool = False, remove: bool = True):
 
     """
@@ -319,6 +340,8 @@ def group_scans(filename: str, nh: int = 2, min_replicates: int = 1, report: str
                                                                     len(n[1]["scanids"]),
                                                                     int(n[1]["flag"])))
 
+    # remove nodes where flag attribute set to False if not pass filter
+    # complete graph is removed when the flag attribute of MS1 node is set to False
     if remove:
         for G in list(groups):
             h = list(nx.topological_sort(G))[0]
@@ -326,7 +349,7 @@ def group_scans(filename: str, nh: int = 2, min_replicates: int = 1, report: str
                 groups.remove(G)
                 continue
 
-            for n in G.nodes(data=True):
+            for n in list(G.nodes(data=True)):
                 if not n[1]["flag"]:
                     G.remove_node(n[0])
                 else:
@@ -335,6 +358,8 @@ def group_scans(filename: str, nh: int = 2, min_replicates: int = 1, report: str
     if len(groups) == 0:
         warnings.warn("No scan events remaining after filtering. Remove MS data file or alter parameters.")
 
+    d.close()
+
     return groups
 
 
@@ -342,7 +367,6 @@ def process_scans(filename: str, groups: list, function_noise: str, snr_thres: f
                   min_fraction: float = None, rsd_thres: float = None, normalise: bool = False,
                   ringing_thres: float = None, exclusion_list: dict = {}, report: str = None,
                   block_size: int = 5000, ncpus: int = None):
-
     """
 
     :param filename:
@@ -362,9 +386,6 @@ def process_scans(filename: str, groups: list, function_noise: str, snr_thres: f
     :rtype: Sequence[PeakList]
     """
 
-    print()
-    print(os.path.basename(filename))
-
     if filename.lower().endswith(".mzml"):
         run = mzml_portal.Mzml(filename)
     elif filename.lower().endswith(".raw"):
@@ -374,7 +395,7 @@ def process_scans(filename: str, groups: list, function_noise: str, snr_thres: f
 
     mz_ranges = []
     if exclusion_list is not None and len(exclusion_list) > 0:
-        mz_ranges = [mz_tolerance(mz, ppm) for mz in exclusion_list]
+        mz_ranges = [mz_tol(mz, ppm) for mz in exclusion_list]
 
     if normalise:
         rsd_on_attr = "intensity_norm"
@@ -410,20 +431,25 @@ def process_scans(filename: str, groups: list, function_noise: str, snr_thres: f
                 # update id
                 copy_ms1.ID = "{}#{}:{}".format(os.path.basename(filename), G.graph['id'], n[0])
                 pls_avg.append(copy_ms1)
-                nscans, n_peaks, median_rsd = len(pls_scans), copy_ms1.shape[0], np.nanmedian(copy_ms1.get_attribute(rsd_label))
+
+                nscans, n_peaks = len(pls_scans), copy_ms1.shape[0]
+                if nscans > 1: # avoid warning
+                    median_rsd = np.nanmedian(copy_ms1.get_attribute(rsd_label))
+                else:
+                    median_rsd = np.nan
             else:
                 if ringing_thres is not None and float(ringing_thres) > 0.0:
-                    #print "Removing ringing artifacts....."
+                    # print("Removing ringing artifacts.....")
                     pls_scans = [filter_ringing(pl, threshold=ringing_thres, bin_size=1.0) if len(pl.mz) > 0 else pl for pl in pls_scans]
 
                 pls_scans = [filter_attr(pl, "snr", min_threshold=snr_thres) if len(pl.mz) > 0 else pl for pl in pls_scans]
 
                 if normalise:
-                    # print "Normalise by Total Ion Current (TIC)....."
+                    # print("Normalise by Total Ion Current (TIC).....")
                     pls_scans = [pl.add_attribute("intensity_norm", pl.get_attribute("intensity", False) / pl.metadata["tic"], flagged_only=False, on_index=2) if len(pl.mz) > 0 else pl for pl in pls_scans]
 
-                #print "Aligning, averaging and filtering peaks....."
-                nscans, n_peaks, median_rsd = len(pls_scans), 0, "NA"
+                # print("Aligning, averaging and filtering peaks.....")
+                nscans, n_peaks, median_rsd = len(pls_scans), 0, np.nan
 
                 if sum(pl.shape[0] for pl in pls_scans) == 0:
                     warnings.warn("No scan data available for {}".format(n[0]))
@@ -445,7 +471,12 @@ def process_scans(filename: str, groups: list, function_noise: str, snr_thres: f
                         ms1_headers[n[0]] = pl_avg.copy()
 
                     pls_avg.append(pl_avg)
-                    n_peaks, median_rsd = pl_avg.shape[0], np.nanmedian(pl_avg.get_attribute(rsd_label))
+
+                    n_peaks = pl_avg.shape[0]
+                    if nscans > 1: # avoid warning
+                        median_rsd = np.nanmedian(pl_avg.get_attribute(rsd_label))
+                    else:
+                        median_rsd = np.nan
 
             if report is not None:
                 out.write("{}\t{}\t{}\t{}\t{}\n".format(groups.index(G) + 1, n[0], nscans, n_peaks, median_rsd))
@@ -456,10 +487,12 @@ def process_scans(filename: str, groups: list, function_noise: str, snr_thres: f
     if report is not None:
         out.close()
 
+    run.close()
+
     return pls_avg
 
 
-def create_spectral_trees(trees: Sequence[nx.OrderedDiGraph], peaklists: Sequence[PeakList]):
+def create_spectral_trees(trees: Sequence[nx.classes.ordered.OrderedDiGraph], peaklists: Sequence[PeakList]):
 
     """
 

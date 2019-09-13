@@ -2,145 +2,22 @@
 import os
 import collections
 import sqlite3
-import configparser
 from typing import Sequence
-import mysql.connector
-from urllib.parse import urlparse
 import requests
 import networkx as nx
 import pandas as pd
-from .processing import mz_tolerance
+from .processing import mz_tol, mz_pair_diff_tol
 
 
-class DbMolecularFormulaeLocal:
+class ApiMfdb:
 
-    def __init__(self, config_db: str):
+    def __init__(self, url="https://mfdb.bham.ac.uk"):
+        self.url = url
+        self.url_mass_range = '{}/api/formula/mass_range/'.format(self.url)
+        r = requests.get('{}/api/formula/mass/?mass=71.03711&tol=1&tol_unit=ppm&rules=1'.format(self.url))
+        r.raise_for_status()
 
-        # Read config file
-        config = configparser.ConfigParser()
-        config.read(config_db)
-
-        # MySQL configurations
-        # conda install -c anaconda mysql-connector-python
-        self.connection = mysql.connector.connect(host=config.get('database', 'host'),
-                                             passwd=config.get('database', 'password'),
-                                             db=config.get('database', 'db'),
-                                             user=config.get('database', 'user'),
-                                             port=int(config.get('database', 'port')))
-        self.cursor = self.connection.cursor()
-
-    def table_names(self):
-        ranges = []
-
-        #try:
-        #    self.cursor.execute('SELECT name FROM sqlite_master WHERE type = "table"')
-        #except:
-        self.cursor.execute("show tables;")
-
-        tables = self.cursor.fetchall()
-        for table in tables:
-            prefixes = table[0].split("__")
-            ranges.append([float(prefixes[1].replace("_", ".")), float(prefixes[2].replace("_", "."))])
-        return ranges
-
-
-    def select_mf(self, min_tol: float, max_tol: float, adducts: dict = None, rules: bool = True, sql_filter: str = ""):
-        # print min_tol, max_tol, adducts, rules
-        # print (137.0588-min_tol)/(137.0588*0.000001)
-        # print (137.0588-max_tol)/(137.0588*0.000001)
-        # raw_input()
-
-        if adducts is None:  # NEUTRAL LOSSES
-            adducts = [None]
-            adducts_lib = {None: 0.0}
-        else:
-            e = 0.0005486
-            adducts_lib = {"[M+H]+": 1.007825 - e,
-                "[M+NH4]+": 18.034374 - e,
-                "[M+Na]+": 22.989770 - e,
-                "[M+(39K)]+": 38.963708 - e,
-                "[M+(41K)]+": 40.961825 - e,
-                "[M+(6Li)]+": 6.015123 - e,
-                "[M+(7Li)]+": 7.016005 - e,
-                "[NaCl][M+H]+": (1.007825 + 22.989770 + 34.968853) - e,
-                "[M+H+HCOOH]+": 47.01329458 - e,
-                "[M+H+NaCl]+": 58.96644546 - e,
-                "[M+NH4+HCOOH]+": 64.03984158 - e,
-                "[M+Na+HCOOH]+": 68.99523658 - e,
-                "[M+H+CHOONa]+": 68.99526858 - e,
-                "[M+H+KCl]+": 74.94038516 - e,
-                "[M+K+HCOOH]+": 84.96917658 - e,
-                "[M-H]-": -(1.007825 - e),
-                "[M+(35Cl)]-": 34.968853 + e,
-                "[M+(37Cl)]-": 36.965903 + e,
-                "[M+Na-2H]-": (22.989770 - (2 * 1.007825)) + e,
-                "[M+K-2H]-": (38.963708 - (2 * 1.007825)) + e,
-                "[M+Hac-H]-": 59.0138536}
-
-        mf_out = []
-        mf_id = 1
-        table_names = self.table_names()
-        for adduct in adducts:
-
-            min_tol_temp, max_tol_temp = min_tol - adducts_lib[adduct], max_tol - adducts_lib[adduct]
-            if min_tol_temp >= 0 and max_tol_temp >= 0 and min_tol_temp <= max_tol_temp:
-                tables = []
-
-                for start_end in table_names:
-                    table = "mf__{}__{}".format(str(start_end[0]).replace(".", "_"), str(start_end[1]).replace(".", "_"))
-                    if min_tol_temp >= start_end[0] and min_tol_temp <= start_end[1] and table not in tables:
-                        tables.append(table)
-                    if max_tol_temp >= start_end[0] and max_tol_temp <= start_end[1] and table not in tables:
-                        tables.append(table)
-
-                if len(tables) > 0:
-                    names = ["C", "H", "N", "O", "P", "S"]
-                    temp = []
-                    for table in tables:
-                        if rules:
-                            temp.append("""select * from {} where lewis = 1 and senior = 1 and HC = 1 and NOPSC = 1 and ExactMass >= {}
-                                        and ExactMass <= {} {}""".format(table, min_tol_temp, max_tol_temp, sql_filter))
-                        else:
-                            temp.append("select * from {} where ExactMass >= {} and ExactMass <= {}".format(table, min_tol_temp, max_tol_temp))
-
-                    # print " UNION ".join(map(str,temp))
-                    self.cursor.execute(" UNION ".join(map(str, temp)))  # + " order by ExactMass")
-                    mf = self.cursor.fetchall()
-                    for record in mf:
-                        # print {"DBE":record[6], "LEWIS":record[7], "SENIOR":record[8], "HC":record[9], "NOPSC":record[10]}
-                        mf_out.append(
-                            {"mass": float(record[-1]) + adducts_lib[adduct], "atoms": dict(zip(names, record)), "adduct": adduct, "DBE": record[6],
-                             "LEWIS": record[7], "SENIOR": record[8], "HC": record[9], "NOPSC": record[10]})
-                        mf_id += 1
-            else:
-                pass
-                # print "Incorrect boundaries - min: {}  max: {}".format(min_tol_temp, max_tol_temp)
-                # sys.exit()
-
-        # print min_tol, max_tol, len(mf_out)
-        # print "----------------------------"
-
-        # print([len(mf_out), min_tol, max_tol, rules])
-        return mf_out
-
-
-class DbMolecularFormulaeApi:
-
-    def __init__(self, url):
-        self.url = '{}/api/formula/mass_range/'.format(url)
-        url_test = '{}/api/formula/mass/?mass=71.03711&tol=1&tol_unit=ppm&rules=1'.format(url)
-        o = urlparse(url)
-        if o.scheme != "http" and o.netloc != "mfdb.bham.ac.uk":
-            raise ValueError("No database or local db available")
-        else:
-            r = requests.get(url_test)
-            r.raise_for_status()
-
-    def select_mf(self, min_tol: float, max_tol: float, adducts: dict = None, rules: bool = True, sql_filter: str = ""):
-        # print min_tol, max_tol, adducts, rules
-        # print (137.0588-min_tol)/(137.0588*0.000001)
-        # print (137.0588-max_tol)/(137.0588*0.000001)
-        # raw_input()
+    def select_mf(self, min_tol: float, max_tol: float, adducts: list = None, rules: bool = True):
 
         if adducts is None:  # NEUTRAL LOSSES
             adducts = [None]
@@ -175,7 +52,7 @@ class DbMolecularFormulaeApi:
 
             params = {"lower": min_tol - adducts_lib[adduct],
                       "upper": max_tol - adducts_lib[adduct], "rules": int(rules)}
-            response = requests.get(self.url, params=params)
+            response = requests.get(self.url_mass_range, params=params)
 
             # Check response is ok
             if not response:
@@ -212,31 +89,17 @@ class DbMolecularFormulaeApi:
         return mf_out
 
 
-def mz_pair_diff_tol(lower_mz: float, upper_mz: float, lower_mz_tol: float, upper_mz_tol: float,
-                     lower_mz_unit: str = "ppm", upper_mz_unit: str = "ppm"):
-    mz_diff = upper_mz - lower_mz
-    lmt = mz_tolerance(lower_mz, lower_mz_tol, lower_mz_unit)[1] - lower_mz
-    hmt = mz_tolerance(upper_mz, upper_mz_tol, upper_mz_unit)[1] - upper_mz
-    total_tol = lmt + hmt
+def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_out: str, ppm: float,
+                adducts: list = ["[M+H]+"], rules: bool = True, mf_db: str = "http://mfdb.bham.ac.uk",
+                prefix_inp: str = ""):
 
-    if mz_diff - total_tol < 0.0:
-        return 0.0, mz_diff + total_tol
-    else:
-        return mz_diff - total_tol, mz_diff + total_tol
-
-
-def annotate_mf(spectral_trees: Sequence[nx.OrderedDiGraph], db_out: str, ppm: float, adducts: list = ["[M+H]+"],
-                rules: bool = True, mf_db: str = "http://multiomics-int.cs.bham.ac.uk", prefix_inp: str = ""):
-
-    if os.path.isfile(mf_db):
-        db = DbMolecularFormulaeLocal(config_db=mf_db)
-    else:
-        db = DbMolecularFormulaeApi(url=mf_db)
+    db = ApiMfdb(url=mf_db)
 
     conn = sqlite3.connect(db_out)
     cursor = conn.cursor()
 
     for G in spectral_trees:
+        print("START", G.graph["id"])
         if prefix_inp == "":
             prefix = "_{}".format(G.graph["id"])
         else:
@@ -282,10 +145,10 @@ def annotate_mf(spectral_trees: Sequence[nx.OrderedDiGraph], db_out: str, ppm: f
                     if node_id not in nodes_done:
 
                         nodes_done.append(node_id)
-                        min_tol, max_tol = mz_tolerance(node["mz"], ppm)  # ppm tol
+                        min_tol, max_tol = mz_tol(node["mz"], ppm)  # ppm tol
 
                         records_mf = db.select_mf(min_tol, max_tol, adducts, rules)
-
+                        print(len(records_mf))
                         if len(records_mf) > 0:
                             for mf in records_mf:
                                 ppm_error = round((node["mz"] - mf["mass"]) / (mf["mass"] * 0.000001), 2)
@@ -303,7 +166,7 @@ def annotate_mf(spectral_trees: Sequence[nx.OrderedDiGraph], db_out: str, ppm: f
                 node_i = G.node[edge[0]]
                 node_j = G.node[edge[1]]
 
-                min_tol, max_tol = mz_pair_diff_tol(node_j["mz"], node_i["mz"], ppm, ppm)
+                min_tol, max_tol = mz_pair_diff_tol(node_j["mz"], node_i["mz"], ppm, "ppm")
 
                 records_mf = db.select_mf(min_tol, max_tol, None, False)
 
@@ -356,7 +219,7 @@ def annotate_mf(spectral_trees: Sequence[nx.OrderedDiGraph], db_out: str, ppm: f
     return spectral_trees
 
 
-def mf_tree(G: nx.OrderedDiGraph, path_db: str, max_mslevel: int, prefix: str):
+def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int, prefix: str):
 
     conn = sqlite3.connect(path_db)
     cursor = conn.cursor()
@@ -386,12 +249,16 @@ def mf_tree(G: nx.OrderedDiGraph, path_db: str, max_mslevel: int, prefix: str):
         sql_str += "\n".join(map(str, sql_join))
         sql_str += "\nWHERE E1.MF_ID_PREC = {};".format(mf_prec[0]) # ID
 
+        print(sql_str)
+
         cursor.execute(sql_str)
         records = cursor.fetchall()
 
         GG = G.copy()
         atoms = ["C", "H", "N", "O", "P", "S"]
         for record in records:
+            print(record)
+            input()
             record = filter(lambda x: x is not None, record)
             for i in range(0, len(record), 6):
                 ids = record[i:i + 6]
@@ -433,7 +300,7 @@ def mf_tree(G: nx.OrderedDiGraph, path_db: str, max_mslevel: int, prefix: str):
     return mft
 
 
-def filter_mf(trees: Sequence[nx.OrderedDiGraph], path_db: str):
+def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str):
 
     #http://www.sqlstyle.guide/
 
@@ -731,7 +598,7 @@ def print_formula(atom_counts: dict):
     return formula_out
 
 
-def rank_mf(trees: Sequence[nx.OrderedDiGraph]):
+def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph]):
 
     columns = ["TreeID", 'GroupID', 'MolecularFormulaID', 'MolecularFormula', 'Adduct', 'Rank', 'TotalRanks', 'RankedEqual', 'Trees', 'NeutralLossesExplained']
     df = pd.DataFrame(columns=columns)
