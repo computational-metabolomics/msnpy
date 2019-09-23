@@ -77,7 +77,7 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
             metad = {'tree_id': tree.graph['id'], 'header': header, 'parent': {}}
 
             for d in list(group):
-
+    #
                 # get precursor details for each level
                 for n in tree.predecessors(d['id']):
 
@@ -94,11 +94,13 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
                         metad['parent'][pd['mslevel']]['mass'] = mf_details_p['mass']
                         metad['parent'][pd['mslevel']]['adduct'] = mf_details_p['adduct']
                         metad['parent'][pd['mslevel']]['mf'] = mf_details_p['mf']
+                    else:
+                        mf_details_p = {}
 
                     precursor_detail_track.append(pd['mslevel'])
 
                     if ms1:
-                        if adjust_mz:
+                        if adjust_mz and mf_details_p:
                             all_ms1_precursors[mf_details_p['mass']] = pd['intensity']
                         else:
                             all_ms1_precursors[pd['mz']] = pd['intensity']
@@ -131,7 +133,7 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
                           mz=mza,
                           intensity=intensity,
                           **metad)
-            print(pl)
+
             if mf:
                 pl.add_attribute('mass', mass)
                 pl.add_attribute('mz_original', mz)
@@ -149,14 +151,14 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
     # Merge
     if merge:
         merged_pls = []
-        for (key, pls) in iteritems(plsd):
+        for (key, plsi) in iteritems(plsd):
 
-            if not pls:
+            if not plsi:
                 continue
-            merged_id = "<#>".join([pl.ID for pl in pls])
-            pm = align_peaks(pls, ppm=ppm)
+            merged_id = "<#>".join([pl.ID for pl in plsi])
+            pm = align_peaks(plsi, ppm=ppm)
             plm = pm.to_peaklist(ID=merged_id)
-            plm.metadata['parent'] = {1: pls[0].metadata['parent'][1]}
+            plm.metadata['parent'] = {1: plsi[0].metadata['parent'][1]}
 
             merged_pls.append(plm)
 
@@ -176,6 +178,7 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
         ms1_precursors_pl = ''
 
     return pls, merged_pls, ms1_precursors_pl
+
 
 
 def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_annotations=True, include_ms1=False):
@@ -227,7 +230,7 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
                     f.write('{} {}\n'.format(msp_params['mf'], parent_metadata['mf']))
 
             else:
-                mtch = re.search('.*Full ms(\d+).*', pl.ID)
+                mtch = re.search('.*Full ms(\d+).*', str(pl.ID))
                 if mtch:
                     f.write('{} {}\n'.format(msp_params['ms_level'], mtch.group(1)))
 
@@ -244,6 +247,7 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
             mtch = re.findall('\d+.\d+@(\D+)(\d+.\d+)', pl.ID)
             if mtch:
                 mtchz = list(zip(*mtch))
+                mtchz[1] = sorted(mtchz[1])
                 f.write('{} {}\n'.format(msp_params['fragmentation_mode'], ', '.join(set(mtchz[0]))))
                 f.write('{} {}\n'.format(msp_params['collision_energy'], ', '.join(set(mtchz[1]))))
 
