@@ -247,9 +247,9 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
             mtch = re.findall('\d+.\d+@(\D+)(\d+.\d+)', pl.ID)
             if mtch:
                 mtchz = list(zip(*mtch))
-                mtchz[1] = sorted(mtchz[1])
+                ce = sorted(set(mtchz[1]))
                 f.write('{} {}\n'.format(msp_params['fragmentation_mode'], ', '.join(set(mtchz[0]))))
-                f.write('{} {}\n'.format(msp_params['collision_energy'], ', '.join(set(mtchz[1]))))
+                f.write('{} {}\n'.format(msp_params['collision_energy'], ', '.join(ce)))
 
             f.write('{} {}\n'.format(msp_params['num_peaks'], dt.shape[0]))
 
