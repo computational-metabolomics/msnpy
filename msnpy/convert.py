@@ -85,9 +85,11 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True,
 
             for d in list(group):
 
+
                 metad['mslevel'] = d['mslevel']
                 ID = d['id']
                 print(ID)
+
                 # get precursor details for each level
                 for n in tree.predecessors(d['id']):
 
@@ -146,8 +148,10 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True,
                           mz=mza,
                           intensity=intensity,
                           **metad)
+
             pl.metadata['convert_id'] = convert_id
             convert_id += 1
+
             if mf:
                 pl.add_attribute('mass', mass)
                 pl.add_attribute('mz_original', mz)
@@ -174,8 +178,10 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True,
             pm = align_peaks(plsi, ppm=ppm)
             plm = pm.to_peaklist(ID=merged_id)
             plm.metadata['parent'] = {1: plsi[0].metadata['parent'][1]}
+
             plm.metadata['convert_id'] = convert_id
             convert_id += 1
+
 
             merged_pls.append(plm)
 
@@ -278,7 +284,9 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
                 mtchz = list(zip(*mtch))
                 ce = sorted(set(mtchz[1]))
                 f.write('{} {}\n'.format(msp_params['fragmentation_mode'], ', '.join(set(mtchz[0]))))
+
                 f.write('{} TEST {}\n'.format(msp_params['collision_energy'], ', '.join(ce)))
+
 
             f.write('{} {}\n'.format(msp_params['num_peaks'], dt.shape[0]))
 
