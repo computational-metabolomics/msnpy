@@ -48,7 +48,7 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True,
 
     # get peaklist for each header
     for tree in trees:
-        print('TREE', tree)
+
         plsd[tree.graph['id']] = []
 
         # For each tree we look at each "header" e.g. the same mass
@@ -65,7 +65,7 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True,
 
         for header, group in itertools.groupby(tv, key=lambda x: x['header']):
             # get mz, intensity, mass, molecular formula, adduct
-            print('header')
+
             mtch = re.search('.*Full ms .*', header)
             if mtch:
                 # full scan
@@ -88,7 +88,6 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True,
 
                 metad['mslevel'] = d['mslevel']
                 ID = d['id']
-                print(ID)
 
                 # get precursor details for each level
                 for n in tree.predecessors(d['id']):
@@ -182,7 +181,6 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True,
             plm.metadata['convert_id'] = convert_id
             convert_id += 1
 
-
             merged_pls.append(plm)
 
         if out_pth:
@@ -242,19 +240,22 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
 
     with open(out_pth, "w+") as f:
         # Loop through peaklist
+        idi = 0
         for pl in pls:
+            idi += 1
             dt = pl.dtable[pl.flags]
             if dt.shape[0] == 0:
                 continue
 
             if not include_ms1 and (re.search('.*Full ms .*', pl.ID) and ms_level == 1):
                 continue
-
+            if 'convert_id' in pl.metadata:
+                convert_id = pl.metadata['convert_id']
+            else:
+                convert_id = idi
             f.write('{} header {} | idi {}\n'.format(msp_params['name'],
-                                                      pl.ID,
-                                        pl.metadata['convert_id']))
-            f.write('CONVERSION_ID: {}'.format(pl.metadata[
-                                                   'convert_id']))
+                                                     pl.ID, convert_id))
+            f.write('CONVERSION_ID: {}'.format(convert_id))
             f.write('{} {}\n'.format(msp_params['polarity'], polarity))
 
             if msnpy_annotations and not include_ms1:
