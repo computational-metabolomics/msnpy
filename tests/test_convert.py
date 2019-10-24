@@ -26,6 +26,15 @@ class ConvertTestCase(unittest.TestCase):
                                                                      adjust_mz=False,
                                                                      merge=True,
                                                                      ppm=5)
+
+        non_merged_pls, merged_pls, ms1_precursor_pl = tree2peaklist(
+            tree_pth='tests/data/dimsn_trees/A08.json',
+                                                                     out_pth='',
+                                                                     name='test',
+                                                                     adjust_mz=False,
+                                                                     merge=True,
+                                                                     ppm=5)
+
         non_merged_original = load_peaklists_from_hdf5(to_test_data('test_non_merged_pls.hdf5'))
         for i in range(0, len(non_merged_original)):
             self.assertTrue(np.array_equal(non_merged_pls[i].peaks, non_merged_original[i].peaks))
