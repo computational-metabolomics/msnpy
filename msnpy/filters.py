@@ -14,11 +14,11 @@ def validate_injection_time_ms1(G: nx.OrderedDiGraph, max_injection_time: float,
     """
 
     h = list(nx.topological_sort(G))[0]
-    if len(G.node[h]["ioninjectiontimes"]) > 1:
+    if len(G.nodes[h]["ioninjectiontimes"]) > 1:
         raise ValueError("Validation only valid for trees no replication for MS1")
     if label in h:
         # should only have a single scanid
-        if G.node[h]["ioninjectiontimes"][0] > max_injection_time:
+        if G.nodes[h]["ioninjectiontimes"][0] > max_injection_time:
             return False
         else:
             return True
@@ -37,11 +37,11 @@ def filter_by_isolation(G: nx.OrderedDiGraph):
     """
 
     for n in isolates(G):
-        G.node[n[0]]["flag"] = False
+        G.nodes[n[0]]["flag"] = False
     # isolated edges / dependent scan events
     for e in G.edges(data=True):
-        if len(G.node[e[0]]["scanids"]) == 0 and len(G.node[e[1]]["scanids"]) > 0:
-            G.node[e[0]]["flag"] = False
+        if len(G.nodes[e[0]]["scanids"]) == 0 and len(G.nodes[e[1]]["scanids"]) > 0:
+            G.nodes[e[0]]["flag"] = False
     return G
 
 
@@ -65,10 +65,10 @@ def filter_by_replicates(G: nx.OrderedDiGraph, min_replicates: int):
 
     for n in G.nodes(data=True):
         if len(n[1]["scanids"]) < min_replicates[n[1]["mslevel"]-1]:
-            G.node[n[0]]["flag"] = False
+            G.nodes[n[0]]["flag"] = False
 
     for e in G.edges():
-        if len(G.node[e[0]]["scanids"]) < min_replicates[G.node[e[0]]["mslevel"]-1]:
-            G.node[e[0]]["flag"] = False
-            G.node[e[1]]["flag"] = False
+        if len(G.nodes[e[0]]["scanids"]) < min_replicates[G.nodes[e[0]]["mslevel"]-1]:
+            G.nodes[e[0]]["flag"] = False
+            G.nodes[e[1]]["flag"] = False
     return G
