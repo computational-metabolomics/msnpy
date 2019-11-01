@@ -3,7 +3,6 @@
 
 import unittest
 import copy
-import zipfile
 
 from msnpy.processing import *
 
@@ -19,20 +18,28 @@ class ProcessingTestCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        zip_ref = zipfile.ZipFile(to_test_data("mzml_DIMSn.zip"), 'r')
-        zip_ref.extractall(to_test_results(""))
-        zip_ref.close()
+        # zip_ref = zipfile.ZipFile(to_test_data("mzml_DIMSn.zip"), 'r')
+        # zip_ref.extractall(to_test_results(""))
+        # zip_ref.close()
 
-        cls.filename_01 = "A08_Apolar_Daph_AMP1_C30_LCMS_Pos_DIMSn_subset.mzML"
+        cls.filename_01 = to_test_data("A08_Apolar_Daph_AMP1_C30_LCMS_Pos_DIMSn_subset.mzML")
+        cls.filename_02 = to_test_data("A06_Polar_Daph_WAX1_Phenyl_LCMS_Pos_DIMSn_subset.mzML")
 
-        cls.groups = group_scans(to_test_results(cls.filename_01), 2, min_replicates=[1, 3, 3],
-                                 max_injection_time=0.0, merge_ms1=False)
+        cls.groups_01 = group_scans(to_test_results(cls.filename_01), 2, min_replicates=[1, 3, 3],
+                                    max_injection_time=0.0, merge_ms1=False)
+        cls.groups_02 = group_scans(to_test_results(cls.filename_02), 2, min_replicates=[1, 3, 3],
+                                    max_injection_time=0.0, merge_ms1=False)
 
-        cls.pls = process_scans(to_test_results(cls.filename_01), groups=cls.groups, function_noise="median",
-                                snr_thres=3.0, ppm=5.0, min_fraction=0.5, rsd_thres=30.0, normalise=True,
-                                report=to_test_results("processing_01.txt"), block_size=5000, ncpus=None)
+        cls.pls_01 = process_scans(to_test_results(cls.filename_01), groups=cls.groups_01, function_noise="median",
+                                   snr_thres=3.0, ppm=5.0, min_fraction=0.5, rsd_thres=30.0, normalise=True,
+                                   report=to_test_results("processing_01.txt"), block_size=5000, ncpus=None)
+        cls.pls_02 = process_scans(to_test_results(cls.filename_02), groups=cls.groups_02, function_noise="median",
+                                   snr_thres=3.0, ppm=5.0, min_fraction=0.5, rsd_thres=30.0, normalise=True,
+                                   report=to_test_results("processing_02.txt"), block_size=5000, ncpus=None)
 
-        cls.trees = create_spectral_trees(cls.groups, cls.pls)
+        cls.trees_01 = create_spectral_trees(cls.groups_01, cls.pls_01)
+        cls.trees_02 = create_spectral_trees(cls.groups_02, cls.pls_02)
+
 
     def test_grouping(self):
 
@@ -45,73 +52,128 @@ class ProcessingTestCase(unittest.TestCase):
             self.assertEqual(node[1]["colenergy"], colenergy)
             self.assertEqual(node[1]["template"], template)
 
-
+        # -----------------------------------------------------
+        # A08_Apolar_Daph_AMP1_C30_LCMS_Pos_DIMSn_subset.mzML
+        # -----------------------------------------------------
         groups = group_scans(to_test_results(self.filename_01), 2, min_replicates=[1, 3, 3],
-                             report=to_test_results("report_grouping_01.txt"), max_injection_time=0.0,
+                             report=to_test_results("report_grouping_01_01.txt"), max_injection_time=0.0,
                              merge_ms1=False)
 
         nodes = list(groups[0].nodes(data=True))
-        _assert(nodes[0], 'FTMS + p NSI Full ms [190.00-1200.00]', [1], [1.902963042259],
+        _assert(nodes[0], 'FTMS + p NSI d SIM ms [372.00-382.00]', [2], [369.747467041016],
                 1, None, 0.0, True)
         _assert(nodes[1], 'FTMS + p NSI d Full ms2 376.34@hcd20.00 [50.00-390.00]', [3, 6, 9], [1000.0, 1000.0, 1000.0],
                 2, "hcd", 20.0, True)
 
         nodes = list(groups[-1].nodes(data=True))
-        _assert(nodes[0], 'FTMS + p NSI Full ms [190.00-1200.00]', [502], [6.463267803192],
+        _assert(nodes[0], 'FTMS + p NSI d SIM ms [372.00-382.00]', [503], [573.602966308594],
                 1, None, 0.0, True)
         _assert(nodes[1], 'FTMS + p NSI d Full ms2 376.34@cid35.00 [90.00-390.00]', [504, 507, 511],
                 [1000.0, 1000.0, 1000.0],
                 2, "cid", 35.0, True)
 
         groups = group_scans(to_test_results(self.filename_01), 2, min_replicates=[1, 3, 3],
-                             report=to_test_results("report_grouping_02.txt"), max_injection_time=0.0,
+                             report=to_test_results("report_grouping_01_02.txt"), max_injection_time=0.0,
                              merge_ms1=True)
 
         nodes = list(groups[0].nodes(data=True))
-        _assert(nodes[0], 'FTMS + p NSI Full ms [190.00-1200.00]', [1, 12, 497, 502],
-                [1.902963042259, 7.802415370941, 1000.0, 6.463267803192], 1, None, 0.0, True)
+        _assert(nodes[0], 'FTMS + p NSI d SIM ms [372.00-382.00]', [2, 503],
+                [369.747467041016, 573.602966308594], 1, None, 0.0, True)
         _assert(nodes[1], 'FTMS + p NSI d Full ms2 376.34@hcd20.00 [50.00-390.00]', [3, 6, 9], [1000.0, 1000.0, 1000.0],
                 2, "hcd", 20.0, True)
 
         nodes = list(groups[-1].nodes(data=True))
-        _assert(nodes[0], 'FTMS + p NSI Full ms [190.00-1200.00]', [1, 12, 497, 502],
-                [1.902963042259, 7.802415370941, 1000.0, 6.463267803192], 1, None, 0.0, True)
+        _assert(nodes[0], 'FTMS + p NSI d SIM ms [372.00-382.00]', [2, 503],
+                [369.747467041016, 573.602966308594], 1, None, 0.0, True)
         _assert(nodes[1], 'FTMS + p NSI d Full ms2 376.34@cid35.00 [90.00-390.00]', [504, 507, 511],
                 [1000.0, 1000.0, 1000.0],
                 2, "cid", 35.0, True)
 
         groups = group_scans(to_test_results(self.filename_01), 2, min_replicates=[1, 3, 3],
-                             report=to_test_results("report_grouping_03.txt"), max_injection_time=0.0,
+                             report=to_test_results("report_grouping_01_03.txt"), max_injection_time=0.0,
                              merge_ms1=False, split=True)
 
         nodes = list(groups[0].nodes(data=True))
-        _assert(nodes[0], 'FTMS + p NSI Full ms [190.00-1200.00]', [1], [1.902963042259], 1, None, 0.0, False)
+        _assert(nodes[0], 'FTMS + p NSI d SIM ms [372.00-382.00]', [2], [369.747467041016], 1, None, 0.0, False)
 
         groups = group_scans(to_test_results(self.filename_01), 2, min_replicates=[1, 3, 3],
-                             report=to_test_results("report_grouping_03.txt"), max_injection_time=0.5,
+                             report=to_test_results("report_grouping_01_04.txt"), max_injection_time=0.5,
                              merge_ms1=False)
 
         self.assertEqual(len(groups), 0)
+
+        # -----------------------------------------------------
+        # A06_Polar_Daph_WAX1_Phenyl_LCMS_Pos_DIMSn_subset.mzML
+        # -----------------------------------------------------
+        groups = group_scans(to_test_results(self.filename_02), 2, min_replicates=[1, 3, 3],
+                             report=to_test_results("report_grouping_02_01.txt"), max_injection_time=0.0,
+                             merge_ms1=False)
+
+        nodes = list(groups[0].nodes(data=True))
+        _assert(nodes[0], 'FTMS + p NSI Full ms [50.00-1000.00]', [1], [17.388236999512],
+                1, None, 0.0, True)
+        _assert(nodes[1], 'FTMS + p NSI d Full ms2 137.05@hcd20.00 [50.00-150.00]', [2, 5, 8],
+                [9.576781272888, 9.576781272888, 9.576781272888], 2, "hcd", 20.0, True)
+
+        nodes = list(groups[-1].nodes(data=True))
+        _assert(nodes[0], 'FTMS + p NSI Full ms [50.00-1000.00]', [804], [19.371095657349],
+                1, None, 0.0, True)
+        _assert(nodes[1], 'FTMS + p NSI d Full ms2 281.16@cid35.00 [65.00-295.00]', [805, 809, 813],
+                [1000.0, 1000.0, 1000.0],
+                2, "cid", 35.0, True)
+
+        groups = group_scans(to_test_results(self.filename_02), 2, min_replicates=[1, 3, 3],
+                             report=to_test_results("report_grouping_02_02.txt"), max_injection_time=0.0,
+                             merge_ms1=True)
+
+        nodes = list(groups[0].nodes(data=True))
+        _assert(nodes[0], 'FTMS + p NSI Full ms [50.00-1000.00]', [1, 11, 21, 791, 804],
+                [17.388236999512, 21.448980331421, 21.765810012817, 18.100595474243, 19.371095657349],
+                1, None, 0.0, True)
+        _assert(nodes[1], 'FTMS + p NSI d Full ms2 137.05@hcd20.00 [50.00-150.00]', [2, 5, 8],
+                [9.576781272888, 9.576781272888, 9.576781272888], 2, "hcd", 20.0, True)
+
+        nodes = list(groups[-1].nodes(data=True))
+        _assert(nodes[0], 'FTMS + p NSI Full ms [50.00-1000.00]', [1, 11, 21, 791, 804],
+                [17.388236999512, 21.448980331421, 21.765810012817, 18.100595474243, 19.371095657349],
+                1, None, 0.0, True)
+        _assert(nodes[1], 'FTMS + p NSI d Full ms2 281.16@cid35.00 [65.00-295.00]', [805, 809, 813],
+                [1000.0, 1000.0, 1000.0],
+                2, "cid", 35.0, True)
+
+        groups = group_scans(to_test_results(self.filename_02), 2, min_replicates=[1, 3, 3],
+                             report=to_test_results("report_grouping_02_03.txt"), max_injection_time=0.0,
+                             merge_ms1=False, split=True)
+
+        nodes = list(groups[0].nodes(data=True))
+        _assert(nodes[0], 'FTMS + p NSI Full ms [50.00-1000.00]', [1], [17.388236999512], 1, None, 0.0, False)
+
+        groups = group_scans(to_test_results(self.filename_02), 2, min_replicates=[1, 3, 3],
+                             report=to_test_results("report_grouping_02_04.txt"), max_injection_time=0.5,
+                             merge_ms1=False)
+
+        self.assertEqual(len(groups), 0)
+
 
     def test_processing(self):
         groups = group_scans(to_test_results(self.filename_01), 2, min_replicates=[1, 3, 3],
                              max_injection_time=0.0, merge_ms1=False)
 
-        pls = process_scans(to_test_results(self.filename_01), groups=self.groups, function_noise="median", snr_thres=3.0,
+        pls = process_scans(to_test_results(self.filename_01), groups=self.groups_01, function_noise="median", snr_thres=3.0,
                             ppm=5.0, min_fraction=0.5, rsd_thres=30.0, normalise=True,
                             report=to_test_results("processing_01.txt"), block_size=5000, ncpus=None)
 
         self.assertEqual(pls[0].ID,
-                         "A08_Apolar_Daph_AMP1_C30_LCMS_Pos_DIMSn_subset.mzML#1:FTMS + p NSI Full ms [190.00-1200.00]")
-        self.assertEqual(pls[0].mz[0], 195.03663635253906)
-        self.assertEqual(pls[0].mz[-1], 1197.8302001953125)
+                         "A08_Apolar_Daph_AMP1_C30_LCMS_Pos_DIMSn_subset.mzML#1:FTMS + p NSI d SIM ms [372.00-382.00]")
+        self.assertEqual(pls[0].mz[0], 372.1014404296875)
+        self.assertEqual(pls[0].mz[-1], 379.3191223144531)
         self.assertEqual(list(pls[0].__dict__.keys()),
                          ['_dtable', '_id', '_metadata', '_tags', '_flags', '_flag_attrs'])
-        self.assertEqual(pls[0].intensity[0], 103909.3046875)
-        self.assertEqual(pls[0].intensity[-1], 93408.7578125)
-        self.assertEqual(len(pls[0]), 223)
+        self.assertEqual(pls[0].intensity[0], 6439.35986328125)
+        self.assertEqual(pls[0].intensity[-1], 12307.2763671875)
+        self.assertEqual(len(pls[0]), 12)
         self.assertEqual(pls[0].to_str()[0:52], "mz,intensity,intensity_norm,snr,present,fraction,rsd")
-        self.assertEqual(len(pls[0].to_str()), 21723)
+        self.assertEqual(len(pls[0].to_str()), 1312)
 
         self.assertEqual(pls[1].ID,
                          "A08_Apolar_Daph_AMP1_C30_LCMS_Pos_DIMSn_subset.mzML#1:FTMS + p NSI d Full ms2 376.34@hcd40.00 [50.00-390.00]")
@@ -122,8 +184,8 @@ class ProcessingTestCase(unittest.TestCase):
         self.assertEqual(len(pls[2].mz), 0)
 
         self.assertEqual(pls[3].ID,
-                         "A08_Apolar_Daph_AMP1_C30_LCMS_Pos_DIMSn_subset.mzML#2:FTMS + p NSI Full ms [190.00-1200.00]")
-        self.assertEqual(len(pls[3].mz), 344)
+                         "A08_Apolar_Daph_AMP1_C30_LCMS_Pos_DIMSn_subset.mzML#2:FTMS + p NSI d SIM ms [550.00-560.00]")
+        self.assertEqual(len(pls[3].mz), 54)
 
         self.assertEqual(pls[4].ID,
                          "A08_Apolar_Daph_AMP1_C30_LCMS_Pos_DIMSn_subset.mzML#2:FTMS + p NSI d Full ms2 554.55@hcd20.00 [50.00-565.00]")
@@ -144,39 +206,39 @@ class ProcessingTestCase(unittest.TestCase):
 
     def test_create_spectral_trees(self):
 
-        nodes = list(self.trees[0].nodes(data=True))
-        edges = list(self.trees[0].edges(data=True))
+        nodes = list(self.trees_01[0].nodes(data=True))
+        edges = list(self.trees_01[0].edges(data=True))
 
         self.assertEqual(nodes, [])
         self.assertEqual(edges, [])
 
-        nodes = list(self.trees[3].nodes(data=True))
-        edges = list(self.trees[3].edges(data=True))
+        nodes = list(self.trees_01[3].nodes(data=True))
+        edges = list(self.trees_01[3].edges(data=True))
 
-        self.assertEqual(nodes[0][0], "376.3435_9_177")
+        self.assertEqual(nodes[0][0], "538.1646_11_32")
         self.assertListEqual(list(nodes[0][1].keys()), ['mz', 'intensity', 'header', 'mslevel', 'precursor'])
-        self.assertEqual(nodes[0][1]["mz"], 376.3435363769531)
-        self.assertEqual(nodes[0][1]["intensity"], 518535.78125)
-        self.assertEqual(nodes[0][1]["header"], "FTMS + p NSI Full ms [190.00-1200.00]")
+        self.assertEqual(nodes[0][1]["mz"], 538.1646118164062)
+        self.assertEqual(nodes[0][1]["intensity"], 66509.046875)
+        self.assertEqual(nodes[0][1]["header"], "FTMS + p NSI d SIM ms [534.00-544.00]")
         self.assertEqual(nodes[0][1]["mslevel"], 1)
         self.assertEqual(nodes[0][1]["precursor"], True)
 
-        self.assertEqual(nodes[-1][0], "311.2957_11_2")
-        self.assertEqual(nodes[-1][1]["mz"], 311.295654296875)
-        self.assertEqual(nodes[-1][1]["intensity"], 253.14910888671875)
-        self.assertEqual(nodes[-1][1]["header"], "FTMS + p NSI d Full ms3 376.34@cid35.00 326.27@cid35.00 [75.00-340.00]")
-        self.assertEqual(nodes[-1][1]["mslevel"], 3)
+        self.assertEqual(nodes[-1][0], "538.5851_12_12")
+        self.assertEqual(nodes[-1][1]["mz"], 538.5850626627604)
+        self.assertEqual(nodes[-1][1]["intensity"], 79.27662404378255)
+        self.assertEqual(nodes[-1][1]["header"], "FTMS + p NSI d Full ms2 538.17@cid35.00 [135.00-550.00]")
+        self.assertEqual(nodes[-1][1]["mslevel"], 2)
         self.assertEqual(nodes[-1][1]["precursor"], False)
 
-        self.assertEqual(edges[0][0], "376.3435_9_177")
-        self.assertEqual(edges[0][1], "209.1182_10_0")
+        self.assertEqual(edges[0][0], "538.1646_11_32")
+        self.assertEqual(edges[0][1], "254.2855_12_0")
         self.assertListEqual(list(edges[0][2].keys()), ['mzdiff', 'type'])
-        self.assertEqual(edges[0][2]["mzdiff"], 167.2253036)
+        self.assertEqual(edges[0][2]["mzdiff"], 283.8791606)
         self.assertEqual(edges[0][2]["type"], "e")
 
-        self.assertEqual(edges[-1][0], "326.2701_10_9")
-        self.assertEqual(edges[-1][1], "311.2957_11_2")
-        self.assertEqual(edges[-1][2]["mzdiff"], 14.9744771)
+        self.assertEqual(edges[-1][0], "538.1646_11_32")
+        self.assertEqual(edges[-1][1], "538.5851_12_12")
+        self.assertEqual(edges[-1][2]["mzdiff"], -0.4204508)
         self.assertEqual(edges[-1][2]["type"], "e")
 
     def test_create_graphs_from_scan_ids(self):
@@ -198,19 +260,17 @@ class ProcessingTestCase(unittest.TestCase):
         self.assertDictEqual(edges[0][2], {})
 
     def test_assign_precursor(self):
-        ap = assign_precursor(peaklist=self.pls[0], header_frag=self.pls[1].ID.split(":")[-1], tolerance=0.5)
-        self.assertTupleEqual(ap, (376.3430480957031, 2519428.5))
 
-        ap = assign_precursor(peaklist=self.pls[0], header_frag=self.pls[2].ID.split(":")[-1], tolerance=0.5)
-        self.assertTupleEqual(ap, (376.3430480957031, 2519428.5))
+        ap = assign_precursor(peaklist=self.pls_01[0], header_frag=self.pls_01[1].ID.split(":")[-1], tolerance=0.5)
+        self.assertTupleEqual(ap, (376.3426208496094, 538519.8125))
 
-        ap = assign_precursor(peaklist=self.pls[3], header_frag=self.pls[4].ID.split(":")[-1], tolerance=0.5)
-        self.assertTupleEqual(ap, (554.5517578125, 143097.390625))
+        ap = assign_precursor(peaklist=self.pls_02[0], header_frag=self.pls_02[1].ID.split(":")[-1], tolerance=0.5)
+        self.assertTupleEqual(ap, (137.04583740234375, 11351725.0))
 
-        ap = assign_precursor(peaklist=self.pls[3], header_frag=self.pls[5].ID.split(":")[-1], tolerance=0.5)
-        self.assertTupleEqual(ap, (554.5517578125, 143097.390625))
+        ap = assign_precursor(peaklist=self.pls_02[0], header_frag=self.pls_02[2].ID.split(":")[-1], tolerance=0.5)
+        self.assertTupleEqual(ap, (137.04583740234375, 11351725.0))
 
-        ap = assign_precursor(peaklist=self.pls[0], header_frag=self.pls[0].ID.split(":")[-1], tolerance=0.5)
+        ap = assign_precursor(peaklist=self.pls_02[0], header_frag=self.pls_02[0].ID.split(":")[-1], tolerance=0.5)
         self.assertTupleEqual(ap, (None, None))
 
     def test_mz_tol(self):
@@ -221,9 +281,13 @@ class ProcessingTestCase(unittest.TestCase):
         self.assertEqual(mpd, (49.99874999999999, 50.00125000000001))
 
     def test_merge_ms1_scans(self):
-        graphs = merge_ms1_scans(graphs=copy.deepcopy(self.groups))
+        graphs = merge_ms1_scans(graphs=copy.deepcopy(self.groups_01))
         nodes = list(graphs[0].nodes(data=True))
-        self.assertListEqual(nodes[0][1]["scanids"], [1, 12, 497, 502])
+        self.assertListEqual(nodes[0][1]["scanids"], [2, 503])
+
+        graphs = merge_ms1_scans(graphs=copy.deepcopy(self.groups_02))
+        nodes = list(graphs[0].nodes(data=True))
+        self.assertListEqual(nodes[0][1]["scanids"], [1, 11, 21, 791, 804])
 
     def test_templates(self):
 
@@ -231,26 +295,26 @@ class ProcessingTestCase(unittest.TestCase):
                              merge_ms1=False, remove=False)
         templ = create_templates(groups, 2)
         nodes = list(templ[0].nodes(data=True))
-        self.assertEqual(nodes[0][0], "FTMS + p NSI Full ms [190.00-1200.00]")
+        self.assertEqual(nodes[0][0], "FTMS + p NSI d SIM ms [372.00-382.00]")
         self.assertEqual(nodes[0][1]["scanids"], [])
         self.assertEqual(nodes[0][1]["ioninjectiontimes"], [])
         self.assertEqual(nodes[1][0], "FTMS + p NSI d Full ms2 376.34@hcd20.00 [50.00-390.00]")
         self.assertEqual(nodes[1][1]["scanids"], [])
         self.assertEqual(nodes[1][1]["ioninjectiontimes"], [])
         nodes = list(templ[1].nodes(data=True))
-        self.assertEqual(nodes[0][0], "FTMS + p NSI Full ms [190.00-1200.00]")
+        self.assertEqual(nodes[0][0], "FTMS + p NSI d SIM ms [550.00-560.00]")
         self.assertEqual(nodes[0][1]["scanids"], [])
         self.assertEqual(nodes[0][1]["ioninjectiontimes"], [])
 
         gbt = group_by_template(graphs=groups, templates=templ)
         nodes = list(gbt[0].nodes(data=True))
-        self.assertEqual(nodes[0][0], "FTMS + p NSI Full ms [190.00-1200.00]")
-        self.assertEqual(nodes[0][1]["scanids"], [1])
-        self.assertEqual(nodes[0][1]["ioninjectiontimes"], [1.902963042259])
+        self.assertEqual(nodes[0][0], "FTMS + p NSI d SIM ms [372.00-382.00]")
+        self.assertEqual(nodes[0][1]["scanids"], [2])
+        self.assertEqual(nodes[0][1]["ioninjectiontimes"], [369.747467041016])
         self.assertEqual(nodes[1][0], "FTMS + p NSI d Full ms2 376.34@hcd20.00 [50.00-390.00]")
         self.assertEqual(nodes[1][1]["scanids"], [3, 6, 9])
         self.assertEqual(nodes[1][1]["ioninjectiontimes"], [1000.0, 1000.0, 1000.0])
         nodes = list(gbt[1].nodes(data=True))
-        self.assertEqual(nodes[0][0], "FTMS + p NSI Full ms [190.00-1200.00]")
-        self.assertEqual(nodes[0][1]["scanids"], [12])
-        self.assertEqual(nodes[0][1]["ioninjectiontimes"], [7.802415370941])
+        self.assertEqual(nodes[0][0], "FTMS + p NSI d SIM ms [550.00-560.00]")
+        self.assertEqual(nodes[0][1]["scanids"], [13])
+        self.assertEqual(nodes[0][1]["ioninjectiontimes"], [882.302795410156])
