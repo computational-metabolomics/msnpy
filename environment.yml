@@ -4,7 +4,8 @@ channels:
   - bioconda
   - computational-metabolomics
 dependencies:
- - python=3.7
- - dimspy
- - networkx ==2.3
- - requests
+ - dimspy ==2.0.0a1
+ - networkx ==2.4
+ - requests ==2.22.0
+
+
