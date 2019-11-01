@@ -3,6 +3,8 @@
 
 import unittest
 from shutil import copyfile
+from random import shuffle
+import copy
 
 from pandas.testing import assert_frame_equal
 
@@ -142,8 +144,34 @@ class AnnotationTestCase(unittest.TestCase):
 
     def test_rank_mf(self):
         rmf = rank_mf(self.fmf)
-        # rmf.to_csv(to_test_data("ranks_21-hydroxyprogesterone.txt"), sep="\t", index=False)
-        rmf.to_csv(to_test_results("ranks_21-hydroxyprogesterone.txt"), sep="\t", index=False)
+
+        self.assertListEqual([('1_6', 1), ('1_2', 2), ('1_4', 2), ('1_5', 3), ('1_3', 4), ('1_1', 5)],
+                             [(G.graph["id"], G.graph["rank"]) for G in rmf[0]])
+
+        # rmf[1].to_csv(to_test_data("ranks_21-hydroxyprogesterone.txt"), sep="\t", index=False)
+        rmf[1].to_csv(to_test_results("ranks_21-hydroxyprogesterone.txt"), sep="\t", index=False)
 
         assert_frame_equal(pd.read_csv(to_test_data("ranks_21-hydroxyprogesterone.txt"), sep="\t"),
                            pd.read_csv(to_test_results("ranks_21-hydroxyprogesterone.txt"), sep="\t"))
+
+        rmf_filt = rank_mf(self.fmf, rank_threshold=2)
+        self.assertListEqual([('1_6', 1), ('1_2', 2), ('1_4', 2)],
+                             [(G.graph["id"], G.graph["rank"]) for G in rmf_filt[0]])
+
+        # multiple groups and annotations
+        fmf_copy = copy.deepcopy(self.fmf)
+        for G in fmf_copy:
+            G.graph["id"] = G.graph["id"].replace("1_", "2_")  # rename trees
+
+        fmf_2 = self.fmf + fmf_copy
+        shuffle(fmf_2)
+
+        rmf_2 = rank_mf(fmf_2)
+        self.assertListEqual([('1_6', 1), ('1_2', 2), ('1_4', 2), ('1_5', 3), ('1_3', 4), ('1_1', 5),
+                              ('2_6', 1), ('2_2', 2), ('2_4', 2), ('2_5', 3), ('2_3', 4), ('2_1', 5)],
+                             [(G.graph["id"], G.graph["rank"]) for G in rmf_2[0]])
+
+        rmf_2 = rank_mf(fmf_2, rank_threshold=3)
+        self.assertListEqual([('1_6', 1), ('1_2', 2), ('1_4', 2), ('1_5', 3),
+                              ('2_6', 1), ('2_2', 2), ('2_4', 2), ('2_5', 3)],
+                             [(G.graph["id"], G.graph["rank"]) for G in rmf_2[0]])

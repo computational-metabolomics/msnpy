@@ -598,7 +598,7 @@ def print_formula(atom_counts: dict):
     return formula_out
 
 
-def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph]):
+def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], rank_threshold: int = 0):
 
     columns = ["TreeID", 'GroupID', 'MolecularFormulaID', 'MolecularFormula', 'Adduct', 'Rank', 'TotalRanks', 'RankedEqual', 'Trees', 'NeutralLossesExplained']
     df = pd.DataFrame(columns=columns)
@@ -612,6 +612,7 @@ def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph]):
 
         if len(graphs) == 0:
             continue
+
         df_subset = pd.DataFrame(columns=columns)
         for graph in graphs:
             mf_id = graph.graph["id"].split("_")[1]
@@ -628,4 +629,13 @@ def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph]):
         df_subset['TotalRanks'] = df_subset['Rank'].nunique()
         df_subset = df_subset.sort_values(by=['Rank', 'MolecularFormulaID'])
         df = pd.concat([df, df_subset], ignore_index=True)
-    return df
+
+    for G in trees:
+        G.graph["rank"] = int(df[df["TreeID"] == G.graph["id"]]["Rank"])
+        G.graph["mf_id"] =  int(df[df["TreeID"] == G.graph["id"]]["MolecularFormulaID"])
+
+    trees_ranked = sorted(trees, key=lambda i: (int(i.graph['id'].split("_")[0]), i.graph['rank'], i.graph["mf_id"]))
+    if rank_threshold > 0:
+        trees_ranked = [tree for tree in trees_ranked if tree.graph["rank"] <= rank_threshold]
+
+    return trees_ranked, df
