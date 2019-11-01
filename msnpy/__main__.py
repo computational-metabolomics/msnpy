@@ -204,11 +204,17 @@ def main(): # pragma: no cover
                             type=str, required=True,
                             help="Json file containing annotated spectral trees")
 
-    parser_rst.add_argument('-o', '--output',
+    parser_rst.add_argument('-r', '--rank-threshold',
+                            type=int, required=False, default=0,
+                            help="Remove threes that are above a particular rank threshold")
+
+    parser_rst.add_argument('-o', '--output-ranks',
                             type=str, required=True,
                             help="Summary of the rankings")
 
-
+    parser_rst.add_argument('-t', '--output-trees',
+                            type=str, required=True,
+                            help="Json file containing the annotated and ranked spectral trees.")
 
     ##################################################################
     # CONVERT SPECTRA TREES - TO DIMSPY.PEAKLISTS AND MSP FILES
@@ -315,8 +321,9 @@ def main(): # pragma: no cover
 
     if args.step == "rank-spectral-trees":
         st = load_trees(args.input, format="json")
-        ranks = rank_mf(st)
-        ranks.to_csv(args.output, sep="\t", index=False)
+        ranked_trees, ranks = rank_mf(st, args.rank_threshold)
+        ranks.to_csv(args.output_ranks, sep="\t", index=False)
+        save_trees(ranked_trees, args.output_trees, format="json")
 
     if args.step == "create-spectral-trees":
         groups = load_groups(args.groups, format="json")
