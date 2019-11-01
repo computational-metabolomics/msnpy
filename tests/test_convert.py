@@ -51,8 +51,8 @@ class ConvertTestCase(unittest.TestCase):
                                            ms1_precursor_original[i].peaks))
 
     def test_peaklist2msp_non_merged(self):
-        #test_out = to_test_data(os.path.join('convert',
-        # 'test_non_merged.msp'))
+        # test_out = to_test_data(os.path.join('convert',
+        #  'test_non_merged.msp'))
         test_out = os.path.join(tempfile.mkdtemp(), 'test_non_merged.msp')
         pl = load_peaklists_from_hdf5(
             to_test_data('convert', 'test_non_merged_pls.hdf5')
@@ -69,8 +69,8 @@ class ConvertTestCase(unittest.TestCase):
 
     def test_peaklist2msp_merged(self):
 
-        test_out = to_test_data('convert', 'test_merged.msp')
-        #test_out = os.path.join(tempfile.mkdtemp(), 'test_merged.msp')
+        # test_out = to_test_data('convert', 'test_merged.msp')
+        test_out = os.path.join(tempfile.mkdtemp(), 'test_merged.msp')
         peaklist2msp(load_peaklists_from_hdf5(to_test_data('convert', 'test_merged_pls.hdf5')),
                      test_out,
                      msp_type='massbank',
@@ -80,8 +80,8 @@ class ConvertTestCase(unittest.TestCase):
             list(io.open(to_test_data('convert', 'test_merged.msp'))))
 
     def test_peaklist2msp_ms1_precursors(self):
-        test_out = to_test_data('convert', 'test_ms1_precursors.msp')
-        #test_out = os.path.join(tempfile.mkdtemp(), 'test_ms1_precursors.msp')
+        # test_out = to_test_data('convert', 'test_ms1_precursors.msp')
+        test_out = os.path.join(tempfile.mkdtemp(), 'test_ms1_precursors.msp')
         peaklist2msp(load_peaklists_from_hdf5(to_test_data(
                                     'convert', 'test_ms1_precursors_pl.hdf5')),
                      test_out,

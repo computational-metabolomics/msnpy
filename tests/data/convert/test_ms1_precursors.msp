@@ -1,5 +1,6 @@
-RECORD_TITLE: header ms1_precursors | idi 10
-CONVERSION_ID: 10AC$MASS_SPECTROMETRY: ION_MODE positive
+RECORD_TITLE: header ms1_precursors | msnpy_convert_id 10
+msnpy_convert_id: 10
+AC$MASS_SPECTROMETRY: ION_MODE positive
 PK$NUM_PEAK: 4
 PK$PEAK: m/z int. rel.int.
 326.27013142903644	1575.6911214192708	0.3038731710318729

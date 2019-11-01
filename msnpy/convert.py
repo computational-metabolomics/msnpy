@@ -253,9 +253,8 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
                 convert_id = pl.metadata['convert_id']
             else:
                 convert_id = idi
-            f.write('{} header {} | idi {}\n'.format(msp_params['name'],
-                                                     pl.ID, convert_id))
-            f.write('CONVERSION_ID: {}'.format(convert_id))
+            f.write('{} header {} | msnpy_convert_id {}\n'.format(msp_params['name'], pl.ID, convert_id))
+            f.write('msnpy_convert_id: {}\n'.format(convert_id))
             f.write('{} {}\n'.format(msp_params['polarity'], polarity))
 
             if msnpy_annotations and not include_ms1:
