@@ -60,7 +60,6 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
 
         for header, group in itertools.groupby(tv, key=lambda x: x['header']):
             # get mz, intensity, mass, molecular formula, adduct
-
             mtch = re.search('.*Full ms .*', header)
             if mtch:
                 # full scan
@@ -77,6 +76,8 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
             metad = {'tree_id': tree.graph['id'], 'header': header, 'parent': {}}
 
             for d in list(group):
+
+                metad['mslevel'] = d['mslevel']
 
                 # get precursor details for each level
                 for n in tree.predecessors(d['id']):
@@ -144,7 +145,6 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
 
     if out_pth:
         save_peaklists_as_hdf5(pls, os.path.join(out_pth, '{}_non_merged_pls.hdf5'.format(name)))
-
 
     # Merge
     if merge:
@@ -245,10 +245,10 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
             if mtch:
                 mtchz = list(zip(*mtch))
                 f.write('{} {}\n'.format(msp_params['fragmentation_mode'], ', '.join(set(mtchz[0]))))
-                f.write('{} {}\n'.format(msp_params['collision_energy'], ', '.join(set(mtchz[1]))))
+
+                f.write('{} {}\n'.format(msp_params['collision_energy'], ', '.join(mtchz[1])))
 
             f.write('{} {}\n'.format(msp_params['num_peaks'], dt.shape[0]))
-
 
             mz = dt['mz']
             intensity = dt['intensity']
@@ -262,24 +262,14 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
                     f.write('PK$ANNOTATION: m/z tentative_formula formula_count adduct\n')
 
                     for i in range(0, len(mz)):
-                        mzi = mz[i]
-                        mfi = mf[i]
-                        massi = mass[i]
-                        adducti = adduct[i]
-                        if msp_type == 'massbank':
-                            f.write('{}\t{}\t{}\n'.format(mzi, mfi, massi, adducti))
-                        else:
-                            f.write('{}\t{}\n'.format(mzi, rai))
+                        f.write('{}\t{}\t{}\n'.format(mz[i], mf[i], mass[i], adduct[i]))
 
             if msp_params['cols']:
                 f.write('{}\n'.format(msp_params['cols']))
 
             for i in range(0, len(mz)):
-                mzi = mz[i]
-                intensityi = intensity[i]
-                rai = ra[i]
                 if msp_type == 'massbank':
-                    f.write('{}\t{}\t{}\n'.format(mzi, intensityi, rai))
+                    f.write('{}\t{}\t{}\n'.format(mz[i], intensity[i], ra[i]))
                 else:
-                    f.write('{}\t{}\n'.format(mzi, rai))
+                    f.write('{}\t{}\n'.format(mz[i], ra[i]))
             f.write('\n')
