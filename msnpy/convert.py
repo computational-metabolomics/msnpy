@@ -36,7 +36,7 @@ def sort_lists(l1, *argv):
     return zip(*sorted(zip(*lall)))
 
 
-def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True,
+def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, skip_sim=True,
                   out_pth='', name=''):
     ###########################################################################
     # Extract peaklists from msnpy
@@ -65,9 +65,9 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True,
 
         for header, group in itertools.groupby(tv, key=lambda x: x['header']):
             # get mz, intensity, mass, molecular formula, adduct
-            mtch = re.search('.*Full ms .*', header)
+            mtch = re.search('(.*Full ms .*)|(.*SIM ms.*)', header)
             if mtch:
-                # full scan
+                # full scan or sim window (we do not process)
                 continue
 
             precursor_detail_track = []
@@ -105,16 +105,12 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True,
                         metad['parent'][pd['mslevel']]['mass'] = mf_details_p['mass']
                         metad['parent'][pd['mslevel']]['adduct'] = mf_details_p['adduct']
                         metad['parent'][pd['mslevel']]['mf'] = mf_details_p['mf']
-                    else:
-                        mf_details_p = {}
 
                     precursor_detail_track.append(pd['mslevel'])
 
                     if ms1:
-                        if adjust_mz and mf_details_p:
-                            all_ms1_precursors[mf_details_p['mass']] = pd['intensity']
-                        else:
-                            all_ms1_precursors[pd['mz']] = pd['intensity']
+
+                        all_ms1_precursors[pd['mz']] = pd['intensity']
 
                 mz.append(d['mz'])
                 intensity.append(d['intensity'])
@@ -252,10 +248,7 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
             f.write('{} {}\n'.format(msp_params['polarity'], polarity))
 
             if msnpy_annotations and not include_ms1:
-                print(pl.metadata)
-                print(pl.metadata['parent'])
                 if pl.metadata['parent']:
-                    print("parent keys", pl.metadata['parent'].keys())
                     parent_metadata = pl.metadata['parent'][min(pl.metadata['parent'].keys())]
                     f.write('{} {}\n'.format(msp_params['precursor_mz'], parent_metadata['mz']))
                     if 'mf' in parent_metadata:
