@@ -99,7 +99,7 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
     cursor = conn.cursor()
 
     for G in spectral_trees:
-        print("START", G.graph["id"])
+        print("Annotate precursors and fragments for Group {}".format(G.graph["id"]))
         if prefix_inp == "":
             prefix = "_{}".format(G.graph["id"])
         else:
@@ -140,7 +140,7 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
 
                 for node_id in [edge[0], edge[1]]:
 
-                    node = G.node[node_id]
+                    node = G.nodes[node_id]
 
                     if node_id not in nodes_done:
 
@@ -148,7 +148,7 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
                         min_tol, max_tol = mz_tol(node["mz"], ppm)  # ppm tol
 
                         records_mf = db.select_mf(min_tol, max_tol, adducts, rules)
-                        print(len(records_mf))
+                        # print(min_tol, max_tol, adducts, rules, len(records_mf))
                         if len(records_mf) > 0:
                             for mf in records_mf:
                                 ppm_error = round((node["mz"] - mf["mass"]) / (mf["mass"] * 0.000001), 2)
@@ -163,8 +163,8 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
                                       int(node["precursor"]), node["mslevel"], None, None, None, None, None, None,)
                             rows.append(values)
 
-                node_i = G.node[edge[0]]
-                node_j = G.node[edge[1]]
+                node_i = G.nodes[edge[0]]
+                node_j = G.nodes[edge[1]]
 
                 min_tol, max_tol = mz_pair_diff_tol(node_j["mz"], node_i["mz"], ppm, "ppm")
 
@@ -249,7 +249,7 @@ def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int
         sql_str += "\n".join(map(str, sql_join))
         sql_str += "\nWHERE E1.MF_ID_PREC = {};".format(mf_prec[0]) # ID
 
-        print(sql_str)
+        # print(sql_str)
 
         cursor.execute(sql_str)
         records = cursor.fetchall()
@@ -257,9 +257,9 @@ def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int
         GG = G.copy()
         atoms = ["C", "H", "N", "O", "P", "S"]
         for record in records:
-            print(record)
-            input()
-            record = filter(lambda x: x is not None, record)
+
+            record = tuple(filter(lambda x: x is not None, record))
+
             for i in range(0, len(record), 6):
                 ids = record[i:i + 6]
                 cursor.execute("""
@@ -269,11 +269,11 @@ def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int
                 """.format(prefix, ids[3], ids[5]))
 
                 for mf in cursor.fetchall():
-                    if "mf" not in GG.node[str(mf[0])]:
-                        GG.node[str(mf[0])]["mf"] = {}
-                    if mf[1] not in GG.node[str(mf[0])]["mf"]:
-                        #GG.node[str(mf[0])]["mf"][str(mf[1])] = {"mass": float(mf[14]), "atoms": collections.OrderedDict(zip(atoms, mf[2:8])), "ion": mf[13]}
-                        GG.node[str(mf[0])]["mf"][str(mf[1])] = {"mass": float(mf[9]), "mf": print_formula(collections.OrderedDict(zip(atoms, mf[2:8]))), "adduct": mf[8]}
+                    if "mf" not in GG.nodes[str(mf[0])]:
+                        GG.nodes[str(mf[0])]["mf"] = {}
+                    if mf[1] not in GG.nodes[str(mf[0])]["mf"]:
+                        #GG.nodes[str(mf[0])]["mf"][str(mf[1])] = {"mass": float(mf[14]), "atoms": collections.OrderedDict(zip(atoms, mf[2:8])), "ion": mf[13]}
+                        GG.nodes[str(mf[0])]["mf"][str(mf[1])] = {"mass": float(mf[9]), "mf": print_formula(collections.OrderedDict(zip(atoms, mf[2:8]))), "adduct": mf[8]}
 
                 cursor.execute("""
                 SELECT MZ_ID, MF_ID, C, H, N, O, P, S, ADDUCT, MASS
@@ -289,7 +289,7 @@ def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int
                         GG[n[0]][n[1]]["mf"][str(mf[1])] = {"mass": float(mf[9]), "mf": print_formula(collections.OrderedDict(zip(atoms, mf[2:8])))}
 
         #print "N:", GG.number_of_nodes(), "E:", GG.number_of_edges()
-        nodes = GG.nodes(data=True)
+        nodes = GG.copy().nodes(data=True)
         for node in nodes:
             if "mf" not in node[1]:
                 GG.remove_node(node[0])
@@ -598,7 +598,7 @@ def print_formula(atom_counts: dict):
     return formula_out
 
 
-def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph]):
+def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], rank_threshold: int = 0):
 
     columns = ["TreeID", 'GroupID', 'MolecularFormulaID', 'MolecularFormula', 'Adduct', 'Rank', 'TotalRanks', 'RankedEqual', 'Trees', 'NeutralLossesExplained']
     df = pd.DataFrame(columns=columns)
@@ -612,12 +612,14 @@ def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph]):
 
         if len(graphs) == 0:
             continue
+
         df_subset = pd.DataFrame(columns=columns)
         for graph in graphs:
             mf_id = graph.graph["id"].split("_")[1]
             group_id = graph.graph["id"].split("_")[0]
-            mf = str(graph.node[list(graph.nodes())[0]]["mf"][str(mf_id)]["mf"])
-            adduct = str(graph.node[list(graph.nodes())[0]]["mf"][str(mf_id)]["adduct"])
+            mf = str(graph.nodes[list(graph.nodes())[0]]["mf"][str(mf_id)]["mf"])
+            adduct = str(graph.nodes[list(graph.nodes())[0]]["mf"][str(mf_id)]["adduct"])
+            # print(list(graph.nodes(data=True))[0])
             values = [graph.graph["id"], group_id, mf_id, mf, adduct, 0, 0, 0, len(graphs), graph.number_of_edges()]#, mf_str, ion_str]
             d = collections.OrderedDict(zip(columns, values))
             df_subset = df_subset.append(d, ignore_index=True)
@@ -627,4 +629,13 @@ def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph]):
         df_subset['TotalRanks'] = df_subset['Rank'].nunique()
         df_subset = df_subset.sort_values(by=['Rank', 'MolecularFormulaID'])
         df = pd.concat([df, df_subset], ignore_index=True)
-    return df
+
+    for G in trees:
+        G.graph["rank"] = int(df[df["TreeID"] == G.graph["id"]]["Rank"])
+        G.graph["mf_id"] =  int(df[df["TreeID"] == G.graph["id"]]["MolecularFormulaID"])
+
+    trees_ranked = sorted(trees, key=lambda i: (int(i.graph['id'].split("_")[0]), i.graph['rank'], i.graph["mf_id"]))
+    if rank_threshold > 0:
+        trees_ranked = [tree for tree in trees_ranked if tree.graph["rank"] <= rank_threshold]
+
+    return trees_ranked, df

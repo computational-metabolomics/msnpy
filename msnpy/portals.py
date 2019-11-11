@@ -20,7 +20,7 @@ def save_trees(trees: Sequence[nx.classes.ordered.OrderedDiGraph], filename: str
             for i, e in enumerate(tc.edges()):
                 tc[e[0]][e[1]]["order"] = i
             for i, n in enumerate(tc.nodes()):
-                tc.node[n]["order"] = i
+                tc.nodes[n]["order"] = i
             if format == "json":
                 out.write(str(nx.readwrite.json_graph.node_link_data(tc)) + "\n")
             elif format == "gml":
@@ -29,8 +29,8 @@ def save_trees(trees: Sequence[nx.classes.ordered.OrderedDiGraph], filename: str
                         tc[n[0]][n[1]]["mf"] = str(tc[n[0]][n[1]]["mf"])
                 for i, n in enumerate(tc.nodes()):
                     for k in ["scanids", "ioninjectiontimes", "mf", "coltype", "template"]:
-                        if k in tc.node[n]:
-                            tc.node[n][k] = str(tc.node[n][k])
+                        if k in tc.nodes[n]:
+                            tc.nodes[n][k] = str(tc.nodes[n][k])
                 for line in nx.readwrite.generate_gml(tc):
                     out.write((line + "\n"))
 
@@ -56,7 +56,7 @@ def load_trees(filename: str, format: str = "json"):
 
     def remove_attr(G_, atr):
         for n_ in G_.nodes():
-            del G_.node[n_][atr]
+            del G_.nodes[n_][atr]
         for e in G_.edges():
             del G_[e[0]][e[1]][atr]
         return G_
@@ -72,12 +72,12 @@ def load_trees(filename: str, format: str = "json"):
             for gml_str in inp.read().split("graph")[1:]:
                 G = nx.readwrite.parse_gml("graph" + gml_str)
                 for n in G.nodes():
-                    if "coltype" in G.node[n]:
-                        if G.node[n]["coltype"] == "None":
-                            G.node[n]["coltype"] = None
+                    if "coltype" in G.nodes[n]:
+                        if G.nodes[n]["coltype"] == "None":
+                            G.nodes[n]["coltype"] = None
                     for k in ["scanids", "ioninjectiontimes", "mf", "template"]:
-                        if k in G.node[n]:
-                            G.node[n][k] = eval(G.node[n][k])
+                        if k in G.nodes[n]:
+                            G.nodes[n][k] = eval(G.nodes[n][k])
                 graphs.append(remove_attr(sort_graph(G), "order"))
             return graphs
         else:

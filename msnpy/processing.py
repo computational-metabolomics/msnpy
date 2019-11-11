@@ -92,7 +92,6 @@ def mz_pair_diff_tol(lower_mz: float, upper_mz: float, tol: float, unit: str = "
 
 
 def create_graphs_from_scan_ids(scan_dependents: list, scan_events: dict, ion_injection_times: dict):
-
     """
     Create Directed Graph from scan dependent relationships
 
@@ -147,11 +146,12 @@ def merge_ms1_scans(graphs: Sequence[nx.classes.ordered.OrderedDiGraph]):
     ioninjectiontimes = collections.OrderedDict()
     for G in graphs:
         root = list(nx.topological_sort(G))[0]
-        scan_ids.setdefault(root, []).extend(G.node[root]["scanids"])
-        ioninjectiontimes.setdefault(root, []).extend(G.node[root]["ioninjectiontimes"])
+        scan_ids.setdefault(root, []).extend(G.nodes[root]["scanids"])
+        ioninjectiontimes.setdefault(root, []).extend(G.nodes[root]["ioninjectiontimes"])
     for G in graphs:
-        G.node[root]["scanids"] = scan_ids[root]
-        G.node[root]["ioninjectiontimes"] = ioninjectiontimes[root]
+        root = list(nx.topological_sort(G))[0]
+        G.nodes[root]["scanids"] = scan_ids[root]
+        G.nodes[root]["ioninjectiontimes"] = ioninjectiontimes[root]
     return graphs
 
 
@@ -178,17 +178,17 @@ def create_templates(graphs: Sequence[nx.classes.ordered.OrderedDiGraph], nh: in
             Gt.add_edges_from(list(G.edges())[0:nh - 1])
             for n in Gt.nodes():
                 scan_info = re.findall(r'([\w\.-]+)@([a-zA-Z]+)(\d+\.\d+)', n)
-                Gt.node[n]["scanids"] = list()
-                Gt.node[n]["ioninjectiontimes"] = list()
-                Gt.node[n]["mslevel"] = len(scan_info) + 1
+                Gt.nodes[n]["scanids"] = list()
+                Gt.nodes[n]["ioninjectiontimes"] = list()
+                Gt.nodes[n]["mslevel"] = len(scan_info) + 1
                 if len(scan_info) == 0:
-                    Gt.node[n]["coltype"] = None
-                    Gt.node[n]["colenergy"] = 0.0
+                    Gt.nodes[n]["coltype"] = None
+                    Gt.nodes[n]["colenergy"] = 0.0
                 else:
-                    Gt.node[n]["coltype"] = scan_info[-1][1]
-                    Gt.node[n]["colenergy"] = float(scan_info[-1][2])
-                Gt.node[n]["template"] = True
-                Gt.node[n]["flag"] = True
+                    Gt.nodes[n]["coltype"] = scan_info[-1][1]
+                    Gt.nodes[n]["colenergy"] = float(scan_info[-1][2])
+                Gt.nodes[n]["template"] = True
+                Gt.nodes[n]["flag"] = True
             templates.append(Gt)
     return templates
 
@@ -216,21 +216,20 @@ def group_by_template(graphs: Sequence[nx.classes.ordered.OrderedDiGraph], templ
                         # update master_graphs add nodes/edges or update scanids
                         if e[j] not in master_graphs[i].nodes():
                             master_graphs[i].add_node(e[j],
-                                                      scanids=G.node[e[j]]["scanids"],
-                                                      mslevel=G.node[e[j]]["mslevel"],
-                                                      coltype=G.node[e[j]]["coltype"],
-                                                      colenergy=G.node[e[j]]["colenergy"],
-                                                      ioninjectiontimes=G.node[e[j]]["ioninjectiontimes"],
-                                                      flag=G.node[e[j]]["flag"],
+                                                      scanids=G.nodes[e[j]]["scanids"],
+                                                      mslevel=G.nodes[e[j]]["mslevel"],
+                                                      coltype=G.nodes[e[j]]["coltype"],
+                                                      colenergy=G.nodes[e[j]]["colenergy"],
+                                                      ioninjectiontimes=G.nodes[e[j]]["ioninjectiontimes"],
+                                                      flag=G.nodes[e[j]]["flag"],
                                                       template=False)
                         else:
-
-                            for k, scan_id in enumerate(G.node[e[j]]["scanids"]):
-                                if scan_id not in master_graphs[i].node[e[j]]["scanids"]:
-                                    master_graphs[i].node[e[j]]["scanids"].append(scan_id)
-                                    if "ioninjectiontimes" in master_graphs[i].node[e[j]]:
-                                        ijt = G.node[e[j]]["ioninjectiontimes"][k]
-                                        master_graphs[i].node[e[j]]["ioninjectiontimes"].append(ijt)
+                            for k, scan_id in enumerate(G.nodes[e[j]]["scanids"]):
+                                if scan_id not in master_graphs[i].nodes[e[j]]["scanids"]:
+                                    master_graphs[i].nodes[e[j]]["scanids"].append(scan_id)
+                                    if "ioninjectiontimes" in master_graphs[i].nodes[e[j]]:
+                                        ijt = G.nodes[e[j]]["ioninjectiontimes"][k]
+                                        master_graphs[i].nodes[e[j]]["ioninjectiontimes"].append(ijt)
 
                     if e not in master_graphs[i].edges():
                         master_graphs[i].add_edge(e[0], e[1])
@@ -296,15 +295,15 @@ def group_scans(filename: str, nh: int = 2, min_replicates: int or Sequence[int]
 
     for G in list(graphs):
         h = list(nx.topological_sort(G))[0]
-        if G.node[h]["mslevel"] > 1:
-            warnings.warn("MS1 scan missing. The following scans ids have been removed: {}".format([G.node[n]["scanids"] for n in G.nodes()]))
+        if G.nodes[h]["mslevel"] > 1:
+            warnings.warn("MS1 scan missing. The following scans ids have been removed: {}".format([G.nodes[n]["scanids"] for n in G.nodes()]))
             graphs.remove(G)
 
     if max_injection_time:
         for G in list(graphs):
             if not validate_injection_time_ms1(G, max_injection_time):
                 scan_id_ms1 = G.nodes[list(nx.topological_sort(G))[0]]["scanids"]
-                warnings.warn("Injection time MS1 {} > Maximum injection time for MS1. The following scan ids have been removed: {}".format(scan_id_ms1, [G.node[n]["scanids"] for n in G.nodes()]))
+                warnings.warn("Injection time MS1 {} > Maximum injection time for MS1. The following scan ids have been removed: {}".format(scan_id_ms1, [G.nodes[n]["scanids"] for n in G.nodes()]))
                 graphs.remove(G)
 
     if not split:
@@ -345,7 +344,7 @@ def group_scans(filename: str, nh: int = 2, min_replicates: int or Sequence[int]
     if remove:
         for G in list(groups):
             h = list(nx.topological_sort(G))[0]
-            if not G.node[h]["flag"]:
+            if not G.nodes[h]["flag"]:
                 groups.remove(G)
                 continue
 
@@ -512,7 +511,7 @@ def create_spectral_trees(trees: Sequence[nx.classes.ordered.OrderedDiGraph], pe
         for edge in list(G.edges(data=True)):
 
             header_prec = "{}:{}".format(G.graph["id"], edge[0])
-            if len(G.node[edge[0]]["scanids"]) == 0 or header_prec not in headers:
+            if len(G.nodes[edge[0]]["scanids"]) == 0 or header_prec not in headers:
                 if " ms " in header_prec:
                     warnings.warn("Cannot create a spectral tree without precursor from {}".format(header_prec))
                     break
@@ -528,16 +527,16 @@ def create_spectral_trees(trees: Sequence[nx.classes.ordered.OrderedDiGraph], pe
                 continue
             else:
                 mz_id_prec = "{}_{}_{}".format(round(mz_prec, 4), headers.index(header_prec), np.where(pl.mz == mz_prec)[0][0])
-                GG.add_node(mz_id_prec, mz=mz_prec, intensity=intensity_prec, header=header_prec.split(":")[1], mslevel=G.node[edge[0]]["mslevel"], precursor=True)
+                GG.add_node(mz_id_prec, mz=mz_prec, intensity=intensity_prec, header=header_prec.split(":")[1], mslevel=G.nodes[edge[0]]["mslevel"], precursor=True)
 
             header_frag = "{}:{}".format(G.graph["id"], edge[1])
-            if len(G.node[edge[1]]["scanids"]) == 0 or header_frag not in headers:
+            if len(G.nodes[edge[1]]["scanids"]) == 0 or header_frag not in headers:
                 continue
 
             pl_fragments = peaklists[headers.index("{}:{}".format(G.graph["id"], edge[1]))]
             for j, mz_frag in enumerate(pl_fragments.mz):
                 mz_id_frag = "{}_{}_{}".format(round(mz_frag, 4), headers.index(header_frag), j)
-                GG.add_node(mz_id_frag, mz=mz_frag, intensity=pl_fragments.intensity[j], header=header_frag.split(":")[1], mslevel=G.node[edge[1]]["mslevel"], precursor=False)
+                GG.add_node(mz_id_frag, mz=mz_frag, intensity=pl_fragments.intensity[j], header=header_frag.split(":")[1], mslevel=G.nodes[edge[1]]["mslevel"], precursor=False)
                 GG.add_edge(mz_id_prec, mz_id_frag, mzdiff=round(mz_prec - mz_frag, 7), type="e")
 
         for node in nx.isolates(GG):

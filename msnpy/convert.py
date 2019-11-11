@@ -36,20 +36,25 @@ def sort_lists(l1, *argv):
     return zip(*sorted(zip(*lall)))
 
 
-def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth='', name=''):
-    ####################################################################################################################
+def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True,
+                  out_pth='', name=''):
+    ###########################################################################
     # Extract peaklists from msnpy
-    ####################################################################################################################
+    ###########################################################################
     trees = load_trees(tree_pth)
     plsd = {}
     all_ms1_precursors = {}
+    convert_id = 1
 
     # get peaklist for each header
     for tree in trees:
+
         plsd[tree.graph['id']] = []
 
-        # For each tree we look at each "header" e.g. the same mass spectrometry data (processed prior by dimspy-msnpy)
-        # And create a peaklist for each header. (....probably a better way of doing this perhaps iterating through
+        # For each tree we look at each "header" e.g. the same mass
+        # spectrometry data (processed prior by dimspy-msnpy)
+        # And create a peaklist for each header. (....probably a better way
+        # of doing this perhaps iterating through
         # the tree instead?). Anyway this seems to work OK.
         its = tree.nodes.items()
         # add id to tree values
@@ -73,7 +78,9 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
             mf = []
             adduct = []
 
-            metad = {'tree_id': tree.graph['id'], 'header': header, 'parent': {}}
+            metad = {'tree_id': tree.graph['id'],
+                     'header': header,
+                     'parent': {}}
 
             for d in list(group):
 
@@ -85,21 +92,26 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
                     pd = tree.nodes.get(n)
 
                     # check if we already have this precursor details
-                    if pd['mslevel'] in precursor_detail_track:
-                        continue
+                    #if pd['mslevel'] in precursor_detail_track:
+                    #    continue
 
                     metad['parent'][pd['mslevel']] = {}
                     metad['parent'][pd['mslevel']]['mz'] = pd['mz']
+                    metad['parent'][pd['mslevel']]['ID'] = "{} {}".format(
+                        tree.graph['id'], pd['header'])
+
                     if 'mf' in pd:
                         mf_details_p = get_mf_details(pd)
                         metad['parent'][pd['mslevel']]['mass'] = mf_details_p['mass']
                         metad['parent'][pd['mslevel']]['adduct'] = mf_details_p['adduct']
                         metad['parent'][pd['mslevel']]['mf'] = mf_details_p['mf']
+                    else:
+                        mf_details_p = {}
 
                     precursor_detail_track.append(pd['mslevel'])
 
                     if ms1:
-                        if adjust_mz:
+                        if adjust_mz and mf_details_p:
                             all_ms1_precursors[mf_details_p['mass']] = pd['intensity']
                         else:
                             all_ms1_precursors[pd['mz']] = pd['intensity']
@@ -127,12 +139,14 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
             else:
                 mza, intensity = sort_lists(mza, intensity)
 
-
-            pl = PeakList(ID='{}: {}'.format(tree.graph['id'], header),
+            pl = PeakList(ID='{} {}'.format(tree.graph['id'], header),
                           mz=mza,
                           intensity=intensity,
                           **metad)
-            print(pl)
+
+            pl.metadata['convert_id'] = convert_id
+            convert_id += 1
+
             if mf:
                 pl.add_attribute('mass', mass)
                 pl.add_attribute('mz_original', mz)
@@ -149,14 +163,17 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
     # Merge
     if merge:
         merged_pls = []
-        for (key, pls) in iteritems(plsd):
+        for (key, plsi) in iteritems(plsd):
 
-            if not pls:
+            if not plsi:
                 continue
-            merged_id = "<#>".join([pl.ID for pl in pls])
-            pm = align_peaks(pls, ppm=ppm)
+            merged_id = "<#>".join([pl.ID for pl in plsi])
+            pm = align_peaks(plsi, ppm=ppm)
             plm = pm.to_peaklist(ID=merged_id)
-            plm.metadata['parent'] = {1: pls[0].metadata['parent'][1]}
+            plm.metadata['parent'] = {1: plsi[0].metadata['parent'][1]}
+
+            plm.metadata['convert_id'] = convert_id
+            convert_id += 1
 
             merged_pls.append(plm)
 
@@ -167,15 +184,24 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, out_pth
 
     if ms1:
         mz, intensity = sort_lists(list(all_ms1_precursors.keys()), list(all_ms1_precursors.values()))
-        ms1_precursors_pl = [PeakList(ID='ms1_precursors',
-                                      mz=mz,
-                                      intensity=intensity)]
+        default_values = [1]*len(mz)
+        ms1_precursors_pl = [PeakList(ID='ms1_precursors', mz=mz,
+                                      intensity=intensity,
+                                      )]
+        ms1_precursors_pl[0].add_attribute('present', default_values)
+        ms1_precursors_pl[0].add_attribute('fraction', default_values)
+        ms1_precursors_pl[0].add_attribute('occurrence', default_values)
+        ms1_precursors_pl[0].add_attribute('purity', default_values)
+
+        ms1_precursors_pl[0].metadata['convert_id'] = convert_id
+
         if out_pth:
             save_peaklists_as_hdf5(ms1_precursors_pl, os.path.join(out_pth, '{}_ms1_precursors_pl.hdf5'.format(name)))
     else:
         ms1_precursors_pl = ''
 
     return pls, merged_pls, ms1_precursors_pl
+
 
 
 def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_annotations=True, include_ms1=False):
@@ -204,30 +230,40 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
         msp_params['ms_level'] = 'MS_LEVEL:'
         msp_params['resolution'] = 'RESOLUTION:'
         msp_params['fragmentation_mode'] = 'FRAGMENTATION_MODE:'
-        msp_params['mf'] = 'MOLECULAR_FORMULA:'
+
 
     with open(out_pth, "w+") as f:
         # Loop through peaklist
+        idi = 0
         for pl in pls:
+            idi += 1
             dt = pl.dtable[pl.flags]
             if dt.shape[0] == 0:
                 continue
 
             if not include_ms1 and (re.search('.*Full ms .*', pl.ID) and ms_level == 1):
                 continue
-
-            f.write('{} {}\n'.format(msp_params['name'], pl.ID))
+            if 'convert_id' in pl.metadata:
+                convert_id = pl.metadata['convert_id']
+            else:
+                convert_id = idi
+            f.write('{} header {} | msnpy_convert_id {}\n'.format(msp_params['name'], pl.ID, convert_id))
+            f.write('msnpy_convert_id: {}\n'.format(convert_id))
             f.write('{} {}\n'.format(msp_params['polarity'], polarity))
 
             if msnpy_annotations and not include_ms1:
-                parent_metadata = pl.metadata['parent'][min(pl.metadata['parent'].keys())]
-                f.write('{} {}\n'.format(msp_params['precursor_mz'], parent_metadata['mz']))
-                if 'mf' in parent_metadata:
-                    f.write('{} {}\n'.format(msp_params['precursor_type'], parent_metadata['adduct']))
-                    f.write('{} {}\n'.format(msp_params['mf'], parent_metadata['mf']))
+                print(pl.metadata)
+                print(pl.metadata['parent'])
+                if pl.metadata['parent']:
+                    print("parent keys", pl.metadata['parent'].keys())
+                    parent_metadata = pl.metadata['parent'][min(pl.metadata['parent'].keys())]
+                    f.write('{} {}\n'.format(msp_params['precursor_mz'], parent_metadata['mz']))
+                    if 'mf' in parent_metadata:
+                        f.write('{} {}\n'.format(msp_params['precursor_type'], parent_metadata['adduct']))
+                        f.write('{} {}\n'.format(msp_params['mf'], parent_metadata['mf']))
 
             else:
-                mtch = re.search('.*Full ms(\d+).*', pl.ID)
+                mtch = re.search('.*Full ms(\d+).*', str(pl.ID))
                 if mtch:
                     f.write('{} {}\n'.format(msp_params['ms_level'], mtch.group(1)))
 
@@ -240,13 +276,12 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
                     if mtch:
                         f.write('{} {}\n'.format(msp_params['precursor_mz'], mtch.group(1)))
 
-
             mtch = re.findall('\d+.\d+@(\D+)(\d+.\d+)', pl.ID)
             if mtch:
                 mtchz = list(zip(*mtch))
+                ce = sorted(set(mtchz[1]))
                 f.write('{} {}\n'.format(msp_params['fragmentation_mode'], ', '.join(set(mtchz[0]))))
-
-                f.write('{} {}\n'.format(msp_params['collision_energy'], ', '.join(mtchz[1])))
+                f.write('{} {}\n'.format(msp_params['collision_energy'], ', '.join(ce)))
 
             f.write('{} {}\n'.format(msp_params['num_peaks'], dt.shape[0]))
 
@@ -254,7 +289,7 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
             intensity = dt['intensity']
             ra = dt['intensity'] / np.max(dt['intensity']) * 100
 
-            if msp_type=='massbank':
+            if msp_type == 'massbank':
                 if 'mf' in dt.dtype.names:
                     mf = dt['mf']
                     adduct = dt['adduct']

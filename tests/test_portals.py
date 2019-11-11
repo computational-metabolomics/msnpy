@@ -20,17 +20,13 @@ class PortalsTestCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        zip_ref = zipfile.ZipFile(to_test_data("mzml_DIMSn.zip"), 'r')
-        zip_ref.extractall(to_test_results(""))
-        zip_ref.close()
 
-        filename_01 = "A08_Apolar_Daph_AMP1_C30_LCMS_Pos_DIMSn_subset.mzML"
+        filename_01 = to_test_data("A08_Apolar_Daph_AMP1_C30_LCMS_Pos_DIMSn_subset.mzML")
         cls.groups = group_scans(to_test_results(filename_01), 2, min_replicates=[1, 3, 3],
                              max_injection_time=0.0, merge_ms1=False)
         pls = process_scans(to_test_results(filename_01), groups=cls.groups, function_noise="median", snr_thres=3.0,
                             ppm=5.0, min_fraction=0.5, rsd_thres=30.0, normalise=True,
                             report=to_test_results("processing_01.txt"), block_size=5000, ncpus=None)
-
         cls.trees = create_spectral_trees(cls.groups, pls)
 
     def _compare_trees(self, G, GG):
