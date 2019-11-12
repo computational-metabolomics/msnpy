@@ -276,7 +276,7 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
                 f.write('{} {}\n'.format(msp_params['fragmentation_mode'], ', '.join(set(mtchz[0]))))
                 f.write('{} {}\n'.format(msp_params['collision_energy'], ', '.join(ce)))
 
-            f.write('{} {}\n'.format(msp_params['num_peaks'], dt.shape[0]))
+
 
             mz = dt['mz']
             intensity = dt['intensity']
@@ -291,6 +291,8 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
 
                     for i in range(0, len(mz)):
                         f.write('{}\t{}\t{}\n'.format(mz[i], mf[i], mass[i], adduct[i]))
+
+            f.write('{} {}\n'.format(msp_params['num_peaks'], dt.shape[0]))
 
             if msp_params['cols']:
                 f.write('{}\n'.format(msp_params['cols']))
