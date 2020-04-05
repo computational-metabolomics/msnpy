@@ -41,7 +41,7 @@ Released under the GNU General Public License v3.0 (see `LICENSE file <https://g
 
 
 .. |Build Status (Travis)| image:: https://img.shields.io/travis/computational-metabolomics/msnpy.svg?style=flat&maxAge=3600&label=Travis-CI
-   :target: https://travis-ci.org/computational-metabolomics/msnpy
+   :target: https://travis-ci.com/computational-metabolomics/msnpy
 
 .. |Build Status (AppVeyor)| image:: https://img.shields.io/appveyor/ci/RJMW/msnpy.svg?style=flat&maxAge=3600&label=AppVeyor
    :target: https://ci.appveyor.com/project/RJMW/msnpy/branch/master
