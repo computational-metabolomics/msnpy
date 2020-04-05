@@ -19,7 +19,7 @@ install:
   
 script:
   - msnpy --help
-  - pytest --cov=./
+  - pytest --cov=dimspy tests/
 
 after_script:
   - codecov
