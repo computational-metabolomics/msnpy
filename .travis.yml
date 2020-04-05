@@ -19,7 +19,7 @@ install:
   
 script:
   - msnpy --help
-  - pytest
+  - pytest --cov=./
 
 after_script:
   - codecov
