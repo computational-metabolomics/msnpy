@@ -14,12 +14,14 @@ install:
   - conda info -a
   - conda env create -n test-environment -f environment.yml
   - source activate test-environment
-  - conda install coverage codecov -c conda-forge
-  - python setup.py install
-
+  - conda install pytest codecov -c conda-forge
+  - pip install .
+  
 script:
   - msnpy --help
-  - coverage run --source msnpy setup.py test
+  - pytest
 
 after_script:
-  - python -m codecov
+  - codecov
+  
+  
