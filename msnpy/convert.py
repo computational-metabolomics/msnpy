@@ -1,5 +1,25 @@
 #!/usr/bin/env python
-from __future__ import absolute_import, unicode_literals, print_function
+# -*- coding: utf-8 -*-
+#
+# Copyright © 2019-2020 Ralf Weber
+#
+# This file is part of MSnPy.
+#
+# MSnPy is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# MSnPy is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MSnPy.  If not, see <https://www.gnu.org/licenses/>.
+#
+
+
 from six import iteritems
 from msnpy.portals import load_trees
 from dimspy.portals.hdf5_portal import save_peaklists_as_hdf5
@@ -9,6 +29,7 @@ import itertools
 import numpy as np
 import re
 import os
+
 
 def get_mf_details(pd: dict):
 

@@ -1,5 +1,25 @@
 #!/usr/bin/env python
-#  -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
+#
+# Copyright © 2019-2020 Ralf Weber
+#
+# This file is part of MSnPy.
+#
+# MSnPy is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# MSnPy is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MSnPy.  If not, see <https://www.gnu.org/licenses/>.
+#
+
+
 import os
 import io
 import unittest
@@ -9,8 +29,10 @@ import numpy as np
 from msnpy.convert import *
 from dimspy.portals.hdf5_portal import load_peaklists_from_hdf5
 
+
 def to_test_data(*args):
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", *args)
+
 
 def to_test_results(*args):
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), "results", *args)
