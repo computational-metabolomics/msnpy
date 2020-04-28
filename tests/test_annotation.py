@@ -20,16 +20,16 @@
 #
 
 
-import unittest
-from shutil import copyfile
-from random import shuffle
 import copy
+import unittest
+from random import shuffle
+from shutil import copyfile
+from sqlite3 import connect
 
 from pandas.testing import assert_frame_equal
 
-from msnpy.processing import *
 from msnpy.annotation import *
-from sqlite3 import connect
+from msnpy.processing import *
 
 
 def to_test_data(*args):

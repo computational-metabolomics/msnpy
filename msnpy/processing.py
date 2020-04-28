@@ -20,23 +20,25 @@
 #
 
 
+import collections
+import operator
 import os
 import re
 import warnings
-import operator
-import collections
 from typing import Sequence
+
+import h5py
 import networkx as nx
 import numpy as np
-import h5py
-from dimspy.portals import mzml_portal
-from dimspy.portals import hdf5_portal
-from dimspy.portals import thermo_raw_portal
-from dimspy.process.replicate_processing import average_replicate_scans
 from dimspy.models.peaklist import PeakList
+from dimspy.portals import hdf5_portal
+from dimspy.portals import mzml_portal
+from dimspy.portals import thermo_raw_portal
 from dimspy.process.peak_filters import filter_attr
-from dimspy.process.peak_filters import filter_ringing
 from dimspy.process.peak_filters import filter_mz_ranges
+from dimspy.process.peak_filters import filter_ringing
+from dimspy.process.replicate_processing import average_replicate_scans
+
 from .filters import validate_injection_time_ms1, filter_by_replicates, filter_by_isolation
 
 

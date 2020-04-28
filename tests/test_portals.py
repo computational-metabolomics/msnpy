@@ -22,8 +22,8 @@
 
 import unittest
 
-from msnpy.processing import *
 from msnpy.portals import *
+from msnpy.processing import *
 
 
 def to_test_data(*args):

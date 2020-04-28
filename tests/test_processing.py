@@ -20,8 +20,8 @@
 #
 
 
-import unittest
 import copy
+import unittest
 
 from msnpy.processing import *
 

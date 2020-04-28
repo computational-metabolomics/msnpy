@@ -21,6 +21,7 @@
 
 
 from typing import Sequence
+
 import networkx as nx
 from networkx.readwrite import json_graph
 

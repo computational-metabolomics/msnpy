@@ -20,24 +20,24 @@
 #
 
 
-import os
 import argparse
-from msnpy.processing import group_scans
-from msnpy.processing import process_scans
-from msnpy.processing import create_spectral_trees
+import os
+
+from dimspy.portals import hdf5_portal
+
+from msnpy import __version__
 from msnpy.annotation import annotate_mf
 from msnpy.annotation import filter_mf
 from msnpy.annotation import rank_mf
-from msnpy.portals import save_groups
-from msnpy.portals import load_groups
-from msnpy.portals import save_trees
-from msnpy.portals import load_trees
-from msnpy.convert import tree2peaklist
 from msnpy.convert import peaklist2msp
-
-
-from dimspy.portals import hdf5_portal
-from msnpy import __version__
+from msnpy.convert import tree2peaklist
+from msnpy.portals import load_groups
+from msnpy.portals import load_trees
+from msnpy.portals import save_groups
+from msnpy.portals import save_trees
+from msnpy.processing import create_spectral_trees
+from msnpy.processing import group_scans
+from msnpy.processing import process_scans
 
 
 def map_delimiter(delimiter): # pragma: no cover

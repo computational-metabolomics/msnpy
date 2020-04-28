@@ -20,15 +20,17 @@
 #
 
 
-from six import iteritems
-from msnpy.portals import load_trees
-from dimspy.portals.hdf5_portal import save_peaklists_as_hdf5
-from dimspy.models.peaklist import PeakList
-from dimspy.process.peak_alignment import align_peaks
 import itertools
-import numpy as np
-import re
 import os
+import re
+
+import numpy as np
+from dimspy.models.peaklist import PeakList
+from dimspy.portals.hdf5_portal import save_peaklists_as_hdf5
+from dimspy.process.peak_alignment import align_peaks
+from six import iteritems
+
+from .portals import load_trees
 
 
 def get_mf_details(pd: dict):

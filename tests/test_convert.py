@@ -20,14 +20,13 @@
 #
 
 
-import os
 import io
-import unittest
 import tempfile
-import shutil
-import numpy as np
-from msnpy.convert import *
+import unittest
+
 from dimspy.portals.hdf5_portal import load_peaklists_from_hdf5
+
+from msnpy.convert import *
 
 
 def to_test_data(*args):

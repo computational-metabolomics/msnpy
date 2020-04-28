@@ -20,8 +20,8 @@
 #
 
 
-from networkx import isolates, get_node_attributes
 import networkx as nx
+from networkx import isolates, get_node_attributes
 
 
 def validate_injection_time_ms1(G: nx.OrderedDiGraph, max_injection_time: float, label: str = " ms "):

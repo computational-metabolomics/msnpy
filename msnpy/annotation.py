@@ -20,13 +20,14 @@
 #
 
 
-import os
 import collections
 import sqlite3
 from typing import Sequence
-import requests
+
 import networkx as nx
 import pandas as pd
+import requests
+
 from .processing import mz_tol, mz_pair_diff_tol
 
 
