@@ -30,31 +30,6 @@ import requests
 
 from .processing import mz_tol, mz_pair_diff_tol
 
-def all_adducts():
-    e = 0.0005486
-    adducts = {"[M+H]+": 1.007825 - e,
-               "[M+NH4]+": 18.034374 - e,
-               "[M+Na]+": 22.989770 - e,
-               "[M+(39K)]+": 38.963708 - e,
-               "[M+(41K)]+": 40.961825 - e,
-               "[M+(6Li)]+": 6.015123 - e,
-               "[M+(7Li)]+": 7.016005 - e,
-               "[NaCl][M+H]+": (1.007825 + 22.989770 + 34.968853) - e,
-               "[M+H+HCOOH]+": 47.01329458 - e,
-               "[M+H+NaCl]+": 58.96644546 - e,
-               "[M+NH4+HCOOH]+": 64.03984158 - e,
-               "[M+Na+HCOOH]+": 68.99523658 - e,
-               "[M+H+CHOONa]+": 68.99526858 - e,
-               "[M+H+KCl]+": 74.94038516 - e,
-               "[M+K+HCOOH]+": 84.96917658 - e,
-               "[M-H]-": -(1.007825 - e),
-               "[M+(35Cl)]-": 34.968853 + e,
-               "[M+(37Cl)]-": 36.965903 + e,
-               "[M+Na-2H]-": (22.989770 - (2 * 1.007825)) + e,
-               "[M+K-2H]-": (38.963708 - (2 * 1.007825)) + e,
-               "[M+Hac-H]-": 59.0138536,
-               "NA": 0.00}
-    return adducts
 
 class ApiMfdb:
 
@@ -108,6 +83,7 @@ class ApiMfdb:
 
         # print([len(mf_out), min_tol, max_tol, rules])
         return mf_out
+
 
 def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_out: str, ppm: float,
                 adducts: dict = {"[M+H]+": 1.0072764}, rules: bool = True, mf_db: str = "http://mfdb.bham.ac.uk",
