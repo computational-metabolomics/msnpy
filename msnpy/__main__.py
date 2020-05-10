@@ -311,7 +311,7 @@ def main(): # pragma: no cover
         adducts = {}
         for a in args.adducts:
             al = a.replace('__ob__', '[').replace('__cb__', ']').split("_")
-            adducts[al[0]] = al[0]
+            adducts[al[0]] = al[1]
 
         st = annotate_mf(spectral_trees=spectral_trees,
                          db_out=args.output_db,
