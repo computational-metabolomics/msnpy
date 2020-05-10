@@ -31,8 +31,8 @@ will help you to make the PR if you are new to `git`.
 
 Developers & Contributors
 -------------------------
- - Ralf J. M. Weber (r.j.weber@bham.ac.uk) - `University of Birmingham (UK) <https://www.birmingham.ac.uk/schools/biosciences/staff/profile.aspx?ReferenceId=156564&Name=dr-ralf-weber>`_
- - Thomas N. Lawson (tnl495@bham.ac.uk) - `University of Birmingham (UK) <http://www.birmingham.ac.uk/index.aspx>`_
+ - Ralf J. M. Weber (r.j.weber@bham.ac.uk) - `University of Birmingham (UK) <https://www.birmingham.ac.uk/schools/biosciences/staff/profile.aspx?ReferenceId=156564&Name=dr-ralf-weber>`__
+ - Thomas N. Lawson (more) - `University of Birmingham (UK) <http://www.birmingham.ac.uk/index.aspx>`__
 
 
 License
