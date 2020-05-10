@@ -195,7 +195,7 @@ def main(): # pragma: no cover
                             help="")
 
     parser_ast.add_argument('-m', '--mf-db',
-                            type=str, required=False, default="http://multiomics-int.cs.bham.ac.uk",
+                            type=str, required=False, default="http://mfdb.bham.ac.uk",
                             help="Molecular formulae database")
 
     parser_ast.add_argument('-d', '--output-db',
@@ -206,18 +206,20 @@ def main(): # pragma: no cover
                             type=str, required=True,
                             help="Json file containing the annotated spectral trees.")
 
-    parser_ast.add_argument('-a', '--adducts', nargs='+', required=True,
-                            help="Adducts and the mass difference separated by an underscore"
-                                 "e.g. [M+H]+_1.0072764 [M+NH4]+_18.0338254 [M+Na]+_22.9892214",
-                            default=['[M+H]+_1.0072764',
-                                     '[M+Na]+_18.0338254',
-                                     '[M+NH4]+_22.9892214'])
+    parser_ast.add_argument('-a', '--adducts',
+                            action='append', nargs=2, required=False,
+                            metavar=('name', 'mass'), default=[["[M+H]+", 1.007276]],
+                            help="Adduct and the mass difference separated by a space. "
+                                 "Use quotes when the adduct name includes a space. "
+                                 "Default: [M+H]+ 1.007276")
+
+    parser_ast.add_argument('-u', '--adducts-file',
+                            type=str, required=False,
+                            help="Tab-separated list that includes two columns - 'name' and 'exact_mass'")
 
     parser_ast.add_argument('-f', '--filter',
                             action='store_true', required=False,
-                            help="Filter the spectral tree annotations")
-
-
+                            help="Filter the spectral tree annotations.")
 
     #################################
     # RANK SPECTRAL TREES
@@ -242,19 +244,19 @@ def main(): # pragma: no cover
     # CONVERT SPECTRA TREES - TO DIMSPY.PEAKLISTS AND MSP FILES
     ##################################################################
     parser_cvst.add_argument('-i', '--input',
-                            type=str, required=True,
-                            help="Json file containing annotated spectral trees or dimspy peaklist hdf5 file")
+                             type=str, required=True,
+                             help="Json file containing annotated spectral trees or dimspy peaklist hdf5 file")
 
     parser_cvst.add_argument('-o', '--output',
-                            type=str, required=True,
-                            help="Out folder containing spectra")
+                             type=str, required=True,
+                             help="Out folder containing spectra")
 
     parser_cvst.add_argument('-x', '--input_type',
                              default="json", type=str, required=False,
                              help="If input is either a dimspy peaklist or a msnpy json")
 
     parser_cvst.add_argument('-n', '--name', type=str, required=False,
-                           help="Name to use for suffixing files")
+                             help="Name to use for suffixing files")
 
     parser_cvst.add_argument('-a', '--adjust_mz',
                              action='store_true', required=False,
@@ -265,8 +267,8 @@ def main(): # pragma: no cover
                              help="Filter the spectral tree annotations")
 
     parser_cvst.add_argument('-p', '--ppm',
-                            default=5.0, type=float, required=False,
-                            help="Mass tolerance in Parts per million.")
+                             default=5.0, type=float, required=False,
+                             help="Mass tolerance in Parts per million.")
 
     parser_cvst.add_argument('-s', '--msp',
                              action='store_true', required=False,
@@ -277,8 +279,8 @@ def main(): # pragma: no cover
                              help="If MSP file is to be created what type (massbank, msp)")
 
     parser_cvst.add_argument('-z', '--polarity',
-                           type=str, required=False, default='NA',
-                           help="Polarity to add to the MSP file (positive or negative)")
+                             type=str, required=False, default='NA',
+                             help="Polarity to add to the MSP file (positive or negative)")
 
     parser_cvst.add_argument('-y', '--ms1',
                              action='store_true', required=False,
@@ -327,10 +329,27 @@ def main(): # pragma: no cover
 
     if args.step == "annotate-spectral-trees":
         spectral_trees = load_trees(args.input, format="json")
+
+        if args.adducts_file and args.adducts != [['[M+H]+', 1.007276]]:
+            raise argparse.ArgumentTypeError(
+                "-a/adducts and -u/--adducts-file can not be used together.")
+
+        elif not args.adducts_file and not args.adducts:
+            raise argparse.ArgumentTypeError(
+                "Provide a list of adducts. Use -a/adducts or -u/--adducts-file")
+
         adducts = {}
-        for a in args.adducts:
-            al = a.replace('__ob__', '[').replace('__cb__', ']').split("_")
-            adducts[al[0]] = al[1]
+        if args.adducts_file:
+            with open(args.adducts_file) as inp:
+                line = inp.readline()
+                if "name\texact_mass" in line:
+                    for line in inp.readlines():
+                        line = line.split("\t")
+                        adducts[line[0]] = float(line[1])
+        else:
+            for a in args.adducts:
+                name = a[0].replace('__ob__', '[').replace('__cb__', ']')
+                adducts[name] = float(a[1])
 
         st = annotate_mf(spectral_trees=spectral_trees,
                          db_out=args.output_db,
@@ -388,7 +407,6 @@ def main(): # pragma: no cover
                          os.path.join(args.output, '{}.msp'.format(args.name)),
                          msp_type=args.msp_type,
                          polarity=args.polarity)
-
 
 
 if __name__ == "__main__":
