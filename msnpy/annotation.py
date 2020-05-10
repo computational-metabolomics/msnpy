@@ -8,6 +8,31 @@ import networkx as nx
 import pandas as pd
 from .processing import mz_tol, mz_pair_diff_tol
 
+def all_adducts():
+    e = 0.0005486
+    adducts = {"[M+H]+": 1.007825 - e,
+               "[M+NH4]+": 18.034374 - e,
+               "[M+Na]+": 22.989770 - e,
+               "[M+(39K)]+": 38.963708 - e,
+               "[M+(41K)]+": 40.961825 - e,
+               "[M+(6Li)]+": 6.015123 - e,
+               "[M+(7Li)]+": 7.016005 - e,
+               "[NaCl][M+H]+": (1.007825 + 22.989770 + 34.968853) - e,
+               "[M+H+HCOOH]+": 47.01329458 - e,
+               "[M+H+NaCl]+": 58.96644546 - e,
+               "[M+NH4+HCOOH]+": 64.03984158 - e,
+               "[M+Na+HCOOH]+": 68.99523658 - e,
+               "[M+H+CHOONa]+": 68.99526858 - e,
+               "[M+H+KCl]+": 74.94038516 - e,
+               "[M+K+HCOOH]+": 84.96917658 - e,
+               "[M-H]-": -(1.007825 - e),
+               "[M+(35Cl)]-": 34.968853 + e,
+               "[M+(37Cl)]-": 36.965903 + e,
+               "[M+Na-2H]-": (22.989770 - (2 * 1.007825)) + e,
+               "[M+K-2H]-": (38.963708 - (2 * 1.007825)) + e,
+               "[M+Hac-H]-": 59.0138536,
+               "NA": 0.00}
+    return adducts
 
 class ApiMfdb:
 
@@ -17,41 +42,15 @@ class ApiMfdb:
         r = requests.get('{}/api/formula/mass/?mass=71.03711&tol=1&tol_unit=ppm&rules=1'.format(self.url))
         r.raise_for_status()
 
-    def select_mf(self, min_tol: float, max_tol: float, adducts: list = None, rules: bool = True):
-
-        if adducts is None:  # NEUTRAL LOSSES
-            adducts = [None]
-            adducts_lib = {None: 0.0}
-        else:
-            e = 0.0005486
-            adducts_lib = {"[M+H]+": 1.007825 - e,
-                "[M+NH4]+": 18.034374 - e,
-                "[M+Na]+": 22.989770 - e,
-                "[M+(39K)]+": 38.963708 - e,
-                "[M+(41K)]+": 40.961825 - e,
-                "[M+(6Li)]+": 6.015123 - e,
-                "[M+(7Li)]+": 7.016005 - e,
-                "[NaCl][M+H]+": (1.007825 + 22.989770 + 34.968853) - e,
-                "[M+H+HCOOH]+": 47.01329458 - e,
-                "[M+H+NaCl]+": 58.96644546 - e,
-                "[M+NH4+HCOOH]+": 64.03984158 - e,
-                "[M+Na+HCOOH]+": 68.99523658 - e,
-                "[M+H+CHOONa]+": 68.99526858 - e,
-                "[M+H+KCl]+": 74.94038516 - e,
-                "[M+K+HCOOH]+": 84.96917658 - e,
-                "[M-H]-": -(1.007825 - e),
-                "[M+(35Cl)]-": 34.968853 + e,
-                "[M+(37Cl)]-": 36.965903 + e,
-                "[M+Na-2H]-": (22.989770 - (2 * 1.007825)) + e,
-                "[M+K-2H]-": (38.963708 - (2 * 1.007825)) + e,
-                "[M+Hac-H]-": 59.0138536}
+    def select_mf(self, min_tol: float, max_tol: float, adducts: dict = None, rules: bool = True):
 
         mf_out = []
         mf_id = 1
-        for adduct in adducts:
 
-            params = {"lower": min_tol - adducts_lib[adduct],
-                      "upper": max_tol - adducts_lib[adduct], "rules": int(rules)}
+        for adduct_name, adduct_mass in adducts.items():
+
+            params = {"lower": min_tol - adduct_mass,
+                      "upper": max_tol - adduct_mass, "rules": int(rules)}
             response = requests.get(self.url_mass_range, params=params)
 
             # Check response is ok
@@ -68,9 +67,9 @@ class ApiMfdb:
             for record in records:
                 # print {"DBE":record[6], "LEWIS":record[7], "SENIOR":record[8], "HC":record[9], "NOPSC":record[10]}
                 mf_out.append(
-                    {"mass": float(record['exact_mass']) + adducts_lib[adduct],
+                    {"mass": float(record['exact_mass']) + adduct_mass,
                      "atoms": {k: record['atoms'][k] for k in names},
-                     "adduct": adduct,
+                     "adduct": adduct_name,
                      "DBE": record['rules']['double_bond_equivalents'],
                      "LEWIS": record['rules']['lewis'],
                      "SENIOR": record['rules']['senior'],
@@ -88,9 +87,8 @@ class ApiMfdb:
         # print([len(mf_out), min_tol, max_tol, rules])
         return mf_out
 
-
 def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_out: str, ppm: float,
-                adducts: list = ["[M+H]+"], rules: bool = True, mf_db: str = "http://mfdb.bham.ac.uk",
+                adducts: dict = {"[M+H]+": 1.0072764}, rules: bool = True, mf_db: str = "http://mfdb.bham.ac.uk",
                 prefix_inp: str = ""):
 
     db = ApiMfdb(url=mf_db)
@@ -168,7 +166,7 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
 
                 min_tol, max_tol = mz_pair_diff_tol(node_j["mz"], node_i["mz"], ppm, "ppm")
 
-                records_mf = db.select_mf(min_tol, max_tol, None, False)
+                records_mf = db.select_mf(min_tol, max_tol, {None: 0.0}, False)
 
                 if len(records_mf) > 0:
                     for mf in records_mf:

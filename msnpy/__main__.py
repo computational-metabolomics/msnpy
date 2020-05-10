@@ -188,8 +188,11 @@ def main(): # pragma: no cover
                             help="Json file containing the annotated spectral trees.")
 
     parser_ast.add_argument('-a', '--adducts', nargs='+', required=True,
-                            help="Adducts e.g. [M+H]+ [M+NH4]+ [M+Na]+ [M+(39K)]+",
-                            default=['[M+H]+', '[M+Na]+', '[M+NH4]+'])
+                            help="Adducts and the mass difference separated by an underscore"
+                                 "e.g. [M+H]+_1.0072764 [M+NH4]+_18.0338254 [M+Na]+_22.9892214",
+                            default=['[M+H]+_1.0072764',
+                                     '[M+Na]+_18.0338254',
+                                     '[M+NH4]+_22.9892214'])
 
     parser_ast.add_argument('-f', '--filter',
                             action='store_true', required=False,
@@ -305,8 +308,10 @@ def main(): # pragma: no cover
 
     if args.step == "annotate-spectral-trees":
         spectral_trees = load_trees(args.input, format="json")
-
-        adducts = [a.replace('__ob__', '[').replace('__cb__', ']') for a in args.adducts]
+        adducts = {}
+        for a in args.adducts:
+            al = a.replace('__ob__', '[').replace('__cb__', ']').split("_")
+            adducts[al[0]] = al[0]
 
         st = annotate_mf(spectral_trees=spectral_trees,
                          db_out=args.output_db,

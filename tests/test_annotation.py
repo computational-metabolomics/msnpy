@@ -38,7 +38,7 @@ class AnnotationTestCase(unittest.TestCase):
 
         cls.trees = create_spectral_trees(groups, pls)
 
-        adducts = ["[M+H]+"]
+        adducts = {"[M+H]+":  1.0072764}
         cls.db_single_adduct = to_test_results("test_mf_single_adduct.sqlite")
         cls.amf_single_adduct = annotate_mf(spectral_trees=cls.trees, db_out=cls.db_single_adduct, ppm=10.0, adducts=adducts, rules=True, mf_db="http://mfdb.bham.ac.uk")
 
@@ -57,7 +57,7 @@ class AnnotationTestCase(unittest.TestCase):
         #     print(record)
 
         mz_m = mz_tol(mz=71.03711 + (1.007825 - 0.0005486), tol=1.0, unit="ppm")
-        records = mfdb.select_mf(mz_m[0], mz_m[1], adducts=["[M+H]+"], rules=True)
+        records = mfdb.select_mf(mz_m[0], mz_m[1], adducts={"[M+H]+": 1.0072764}, rules=True)
         self.assertDictEqual(records[0], {'mass': 72.0443904, 'atoms':
                                           {'C': 3, 'H': 5, 'N': 1, 'O': 1, 'P': 0, 'S': 0},
                                           'adduct': '[M+H]+', 'DBE': 2, 'LEWIS': 1, 'SENIOR': 1, 'HC': 1, 'NOPSC': 1})
@@ -79,7 +79,11 @@ class AnnotationTestCase(unittest.TestCase):
 
         conn.close()
 
-        adducts = ["[M+H]+", "[M+Na]+", "[M+NH4]+"]
+        e = 0.0005486
+        adducts = {"[M+H]+": 1.007825 - e,
+                   "[M+NH4]+": 18.034374 - e,
+                   "[M+Na]+": 22.989770 - e
+                   }
         db_out = to_test_results("test_mf_multiple_adducts.sqlite")
 
         amf = annotate_mf(spectral_trees=self.trees, db_out=db_out, ppm=10.0, adducts=adducts, rules=True, mf_db="http://mfdb.bham.ac.uk")
