@@ -135,7 +135,8 @@ def main(): # pragma: no cover
 
     parser_ps.add_argument('-d', '--rsd-threshold',
                            default=None, type=float, required=False,
-                           help="Maximum threshold - relative standard deviation (Calculated for peaks that have been measured across a minimum of two scans).")
+                           help="Maximum threshold - relative standard deviation (Calculated "
+                                "for peaks that have been measured across a minimum of two scans).")
 
     parser_ps.add_argument('-n', '--normalise',
                            default=None, type=float, required=False,
@@ -188,34 +189,38 @@ def main(): # pragma: no cover
 
     parser_ast.add_argument('-p', '--ppm',
                             default=2.0, type=float, required=False,
-                            help="Mass tolerance in Parts per million.")
+                            help="Mass tolerance in parts per million.")
 
     parser_ast.add_argument('-r', '--rules',
                             action='store_true', required=False,
-                            help="")
+                            help="Apply heuristic rules?")
 
     parser_ast.add_argument('-m', '--mf-db',
                             type=str, required=False, default="http://mfdb.bham.ac.uk",
-                            help="Molecular formulae database")
+                            help="URL for the Molecular formulae database (mfdb) API")
 
     parser_ast.add_argument('-d', '--output-db',
                             type=str, required=True,
-                            help="Sqlite database file to store information regarding the annotations.")
+                            help="Sqlite database file to store annotations.")
 
     parser_ast.add_argument('-o', '--output-trees',
                             type=str, required=True,
                             help="Json file containing the annotated spectral trees.")
 
+    parser_ast.add_argument('-e', '--ion-mode', choices=["pos", "neg"], required=False,
+                             help="Used to select 'ion-mode' specific adducts defined in the --adducts-file.")
+
     parser_ast.add_argument('-a', '--adducts',
                             action='append', nargs=2, required=False,
-                            metavar=('name', 'mass'), default=[["[M+H]+", 1.007276]],
+                            metavar=('name', 'mass'), default=[],
                             help="Adduct and the mass difference separated by a space. "
                                  "Use quotes when the adduct name includes a space. "
-                                 "Default: [M+H]+ 1.007276")
+                                 "Example: [M+H]+ 1.007276")
 
     parser_ast.add_argument('-u', '--adducts-file',
                             type=str, required=False,
-                            help="Tab-separated list that includes two columns - 'name' and 'exact_mass'")
+                            help="Tab-separated list that includes two (name and exact_mass) or "
+                                 "three columns (name, exact_mass, ion_mode[pos/neg])")
 
     parser_ast.add_argument('-f', '--filter',
                             action='store_true', required=False,
@@ -328,28 +333,42 @@ def main(): # pragma: no cover
         save_trees(spectral_trees, args.output, format="json")
 
     if args.step == "annotate-spectral-trees":
-        spectral_trees = load_trees(args.input, format="json")
 
-        if args.adducts_file and args.adducts != [['[M+H]+', 1.007276]]:
+        if args.adducts_file and args.adducts:
             raise argparse.ArgumentTypeError(
                 "-a/adducts and -u/--adducts-file can not be used together.")
 
         elif not args.adducts_file and not args.adducts:
             raise argparse.ArgumentTypeError(
-                "Provide a list of adducts. Use -a/adducts or -u/--adducts-file")
+                "Provide a list of adducts. Use -a/adducts or -u/--adducts-file.")
 
         adducts = {}
         if args.adducts_file:
             with open(args.adducts_file) as inp:
                 line = inp.readline()
-                if "name\texact_mass" in line:
+                if "label\texact_mass\tion_mode" in line:
+                    if not args.ion_mode:
+                        raise argparse.ArgumentTypeError(
+                            "Specify ion mode using -e/--ion-mode")
+                    for line in inp.readlines():
+                        line = line.split("\t")
+                        if args.ion_mode in line[2]:  # pos or neg
+                            adducts[line[0]] = float(line[1])
+
+                elif "label\texact_mass" in line:
                     for line in inp.readlines():
                         line = line.split("\t")
                         adducts[line[0]] = float(line[1])
+                else:
+                    raise argparse.ArgumentTypeError(
+                        "Incorrect format -u/--adducts-file.")
+
         else:
             for a in args.adducts:
                 name = a[0].replace('__ob__', '[').replace('__cb__', ']')
                 adducts[name] = float(a[1])
+
+        spectral_trees = load_trees(args.input, format="json")
 
         st = annotate_mf(spectral_trees=spectral_trees,
                          db_out=args.output_db,
