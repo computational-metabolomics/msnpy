@@ -26,6 +26,7 @@ import os
 import re
 import warnings
 from typing import Sequence
+import copy
 
 import h5py
 import networkx as nx
@@ -560,7 +561,7 @@ def create_spectral_trees(trees: Sequence[nx.classes.ordered.OrderedDiGraph], pe
                 GG.add_node(mz_id_frag, mz=mz_frag, intensity=pl_fragments.intensity[j], header=header_frag.split(":")[1], mslevel=G.nodes[edge[1]]["mslevel"], precursor=False)
                 GG.add_edge(mz_id_prec, mz_id_frag, mzdiff=round(mz_prec - mz_frag, 7), type="e")
 
-        for node in nx.isolates(GG):
+        for node in nx.isolates(copy.deepcopy(GG)):
             GG.remove_node(node)
 
         spectral_trees.append(GG)
