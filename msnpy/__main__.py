@@ -226,6 +226,10 @@ def main(): # pragma: no cover
                             action='store_true', required=False,
                             help="Filter the spectral tree annotations.")
 
+    parser_ast.add_argument('-t', '--time_limit',
+                            default=2.0, type=float, required=False,
+                            help="Time limit (seconds) for each tree to be processed for annotation")
+
     #################################
     # RANK SPECTRAL TREES
     #################################
@@ -375,10 +379,11 @@ def main(): # pragma: no cover
                          ppm=args.ppm,
                          adducts=adducts,
                          rules=args.rules,
-                         mf_db=args.mf_db)
+                         mf_db=args.mf_db,
+                         time_limit=args.time_limit)
 
         if args.filter:
-            st = filter_mf(st, args.output_db)
+            st = filter_mf(st, args.output_db, args.time_limit)
         save_trees(st, args.output_trees, format="json")
 
     if args.step == "rank-spectral-trees":
