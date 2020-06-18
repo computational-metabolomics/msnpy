@@ -144,6 +144,20 @@ class AnnotationTestCase(unittest.TestCase):
         records = cursor.fetchall()
         self.assertListEqual(records, [('MF_1',), ('EDGES_1',), ('MZ_PREC_FRAG_1',)])
 
+
+    def test_time_limit_annotate(self):
+        ann_time = annotate_mf(spectral_trees=self.trees, db_out=self.db_single_adduct, ppm=10.0,
+                                            adducts={"[M+H]+":  1.0072764}, rules=True,
+                               mf_db="http://mfdb.bham.ac.uk", time_limit=0.001)
+
+        # check no annotation performed and we output un-annotated trees
+
+    def test_time_limit_mf_filter(self):
+        filter_ann_time = filter_mf(self.trees, self.db_single_adduct_filtered, time_limit=0.001)
+
+        # check no annotation performed and we output un-annotated trees
+
+
     def test_mf_tree(self):
         mft = mf_tree(self.trees[0], self.db_single_adduct_filtered, max_mslevel=5, prefix="_1")
 

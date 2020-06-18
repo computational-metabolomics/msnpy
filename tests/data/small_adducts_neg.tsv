@@ -1,0 +1,5 @@
+label	exact_mass	ion_mode
+[M-H]-	-1.007276	neg
+[M+Cl]-	34.969402	neg
+[M+HCOO]-	44.99765	neg
+[M+CH3COO]-	59.01385	neg

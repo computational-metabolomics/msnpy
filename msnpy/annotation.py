@@ -22,6 +22,7 @@
 
 import collections
 import sqlite3
+import time
 from typing import Sequence
 
 import networkx as nx
@@ -29,6 +30,12 @@ import pandas as pd
 import requests
 
 from .processing import mz_tol, mz_pair_diff_tol
+
+def is_time_left(start_time, time_limit):
+    if time_limit and start_time and time.time() - start_time >= time_limit:
+        return False
+    else:
+        return True
 
 
 class ApiMfdb:
@@ -87,7 +94,7 @@ class ApiMfdb:
 
 def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_out: str, ppm: float,
                 adducts: dict = {"[M+H]+": 1.0072764}, rules: bool = True, mf_db: str = "http://mfdb.bham.ac.uk",
-                prefix_inp: str = ""):
+                prefix_inp: str = "", time_limit: float = None):
 
     db = ApiMfdb(url=mf_db)
 
@@ -95,6 +102,8 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
     cursor = conn.cursor()
 
     for G in spectral_trees:
+        start_time = time.time()
+
         print("Annotate precursors and fragments for Group {}".format(G.graph["id"]))
         if prefix_inp == "":
             prefix = "_{}".format(G.graph["id"])
@@ -131,6 +140,8 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
         nodes_done = []
         rows = []
         for edge in G.edges(data=True):
+            if not is_time_left(start_time, time_limit):
+                break
 
             if edge[2]['mzdiff'] > 0.5 and edge[2]['type'] == "e":
 
@@ -192,6 +203,10 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
                     #              None, None, None, None, None, 0,)
                     #    rows.append(values)
 
+        if not is_time_left(start_time, time_limit):
+            print("Could not complete - time out for group {}".format(G.graph["id"]))
+            continue
+
         cursor.executemany("""
         INSERT INTO MF{}
                (MZ_ID, MF_ID, C, H, N, O, P, S, ADDUCT, MASS, MZ, PPM_ERROR, PRECURSOR, MSLEVEL, DBE, LEWIS, SENIOR, HC, NOPSC, flag)
@@ -215,7 +230,8 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
     return spectral_trees
 
 
-def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int, prefix: str):
+def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int, prefix: str, time_limit: float = None,
+            start_time=None):
 
     conn = sqlite3.connect(path_db)
     cursor = conn.cursor()
@@ -257,6 +273,10 @@ def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int
             record = tuple(filter(lambda x: x is not None, record))
 
             for i in range(0, len(record), 6):
+                if not is_time_left(start_time, time_limit):
+                    print('Time limit reached - no annotated tree for graph {}'.format(G.graph["id"]))
+                    return False
+
                 ids = record[i:i + 6]
                 cursor.execute("""
                 SELECT MZ_ID, MF_ID, C, H, N, O, P, S, ADDUCT, MASS
@@ -290,15 +310,19 @@ def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int
             if "mf" not in node[1]:
                 GG.remove_node(node[0])
         GG.graph["id"] = "{}_{}".format(GG.graph["id"], mf_prec[0])
+
         mft.append(GG)
 
     conn.close()
     return mft
 
 
-def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str):
+def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, time_limit: float = None):
 
     #http://www.sqlstyle.guide/
+
+    print('filter mf')
+
 
     conn = sqlite3.connect(path_db)
     cursor = conn.cursor()
@@ -307,8 +331,10 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str):
 
     annotated_trees = []
     for G in trees:
+        start_time = time.time()
 
         prefix = "_{}".format(G.graph["id"])
+        print("Filtering group {}".format(G.graph["id"]))
 
         ################################################################
         # TABLES: EDGES AND MZ_PREC_FRAG
@@ -364,6 +390,8 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str):
 
         # Insert all inital edges
         for edge in [edge for edge in G.edges(data=True) if edge[2]["type"] == "e" and edge[2]["mzdiff"] > 0.5]:
+            if not is_time_left(start_time, time_limit):
+                break
 
             # Set IDs to search sqlite database
             mz_id_prec, mz_id_frag, mz_id_nl = edge[0], edge[1], "{}__{}".format(edge[0], edge[1])
@@ -376,6 +404,9 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str):
             # Number of C in the fragment MF plus the number of C in the neutral mass should be equal to the number of C in the precursor MF
             # Apply for N, O, P and S.
             for atom in atoms:
+                if not is_time_left(start_time, time_limit):
+                    break
+
                 sub_queries.append("MF3.{} <= MF1.{} AND MF3.{} + MF2.{} = MF1.{}".format(atom, atom, atom, atom, atom))
 
             # APPLY CONSTRAINS & INSERT EDGES
@@ -402,9 +433,13 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str):
         if max_mslevel is None: max_mslevel = 1
 
         for loop in range(1, max_mslevel + 1):
+            if not is_time_left(start_time, time_limit):
+                break
 
             # loop through neutral losses (i.e. type is e)
             for edge in [edge for edge in G.edges(data=True) if edge[2]["type"] == "e" and edge[2]["mzdiff"] > 0.5]:
+                if not is_time_left(start_time, time_limit):
+                    break
 
                 # Define constrains as above
                 mz_id_prec, mz_id_frag, mz_id_nl = edge[0], edge[1], "{}__{}".format(edge[0], edge[1])
@@ -414,6 +449,8 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str):
                     'MF1.FLAG >= 0 AND MF2.FLAG >= 0 AND MF3.FLAG >= 0']
 
                 for atom in atoms:
+                    if not is_time_left(start_time, time_limit):
+                        break
                     sub_queries.append("MF3.{} <= MF1.{} AND MF3.{} + MF2.{} = MF1.{}".format(atom, atom, atom, atom, atom))
 
                 # Apply constrains & Update edges
@@ -500,6 +537,8 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str):
             """.format(prefix, prefix, prefix, prefix), (loop, loop, loop, loop, ))
             records = cursor.fetchall()
             for record in records:
+                if not is_time_left(start_time, time_limit):
+                    break
 
                 # Set the flag for the fragment/precursor MF to a minus value (i.e. -flag)
                 # If all related fragment masses (if exists) have no MF annotation
@@ -512,7 +551,9 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str):
                 """.format(prefix, prefix, prefix, prefix, prefix), values)
 
             conn.commit()
-            # UPDATE COLUMN FLAG IN TABLE EDGES FOR PERCURSOR, NEUTRAL LOSS AND FRAGMENT BASED ON MF TABLE
+            # UPDATE COLUMN FLAG IN TABLE EDGES FOR PRECURSOR, NEUTRAL LOSS AND FRAGMENT BASED ON MF TABLE
+            if not is_time_left(start_time, time_limit):
+                break
 
             cursor.execute("""
             UPDATE EDGES{}
@@ -524,6 +565,8 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str):
                      WHERE MF_ID = MF_ID_FRAG
                    );
             """.format(prefix, prefix, prefix))
+
+            elapsed_time = time.time() - start_time
 
             cursor.execute("""
             UPDATE EDGES{}
@@ -539,6 +582,7 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str):
                      WHERE MF_ID = MF_ID_NL
                    );
             """.format(prefix, prefix, prefix))
+
 
             cursor.execute("""
             UPDATE EDGES{}
@@ -571,8 +615,16 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str):
             """.format(prefix))
             improvement.append(cursor.fetchone()[0])
 
+        if not is_time_left(start_time, time_limit):
+            print('Time limit reached - no annotated tree for graph {}'.format(G.graph["id"]))
+            continue
+
         print("MF AFTER CONSTRAINS: ", ", ".join(map(str, improvement)))
-        annotated_trees.extend(mf_tree(G, path_db, max_mslevel, prefix))
+
+        mf_tree_out = mf_tree(G, path_db, max_mslevel, prefix, time_limit, start_time)
+
+        if mf_tree_out:
+            annotated_trees.extend(mf_tree_out)
 
     conn.close()
     return annotated_trees
