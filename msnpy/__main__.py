@@ -227,7 +227,7 @@ def main(): # pragma: no cover
                             help="Filter the spectral tree annotations.")
 
     parser_ast.add_argument('-t', '--time_limit',
-                            default=2.0, type=float, required=False,
+                            default=None, type=float, required=False,
                             help="Time limit (seconds) for each tree to be processed for annotation")
 
     #################################

@@ -32,8 +32,7 @@ import requests
 from .processing import mz_tol, mz_pair_diff_tol
 
 def is_time_left(start_time, time_limit):
-    elapsed_time = time.time() - start_time
-    if time_limit and elapsed_time >= time_limit:
+    if time_limit and start_time and time.time() - start_time >= time_limit:
         return False
     else:
         return True
@@ -311,6 +310,7 @@ def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int
             if "mf" not in node[1]:
                 GG.remove_node(node[0])
         GG.graph["id"] = "{}_{}".format(GG.graph["id"], mf_prec[0])
+
         mft.append(GG)
 
     conn.close()
@@ -321,7 +321,7 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, 
 
     #http://www.sqlstyle.guide/
 
-
+    print('filter mf')
 
 
     conn = sqlite3.connect(path_db)
