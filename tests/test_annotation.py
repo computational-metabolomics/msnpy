@@ -148,12 +148,12 @@ class AnnotationTestCase(unittest.TestCase):
     def test_time_limit_annotate(self):
         ann_time = annotate_mf(spectral_trees=self.trees, db_out=self.db_single_adduct, ppm=10.0,
                                             adducts={"[M+H]+":  1.0072764}, rules=True,
-                               mf_db="http://mfdb.bham.ac.uk", time_limit=0.001)
+                               mf_db="http://mfdb.bham.ac.uk", time_limit=1)
 
         # check no annotation performed and we output un-annotated trees
 
     def test_time_limit_mf_filter(self):
-        filter_ann_time = filter_mf(self.trees, self.db_single_adduct_filtered, time_limit=0.001)
+        filter_ann_time = filter_mf(self.trees, self.db_single_adduct_filtered, time_limit=1)
 
         # check no annotation performed and we output un-annotated trees
 
