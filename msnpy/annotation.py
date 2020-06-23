@@ -103,6 +103,9 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
         except TimeoutException as e:
             print("Time out ", e)
 
+        if time_limit:
+            signal.alarm(0)
+
     return spectral_trees
 
 
@@ -335,6 +338,9 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, 
                 annotated_trees.extend(filtered_tree)
         except TimeoutException as e:
             print("Time out ", e)
+
+        if time_limit:
+            signal.alarm(0)
 
     return annotated_trees
 
