@@ -49,13 +49,14 @@ class AnnotationTestCase(unittest.TestCase):
         # zip_ref.close()
 
         filename_01 = to_test_data("pos_21-hydroxyprogesterone_subset.mzML")
-        groups = group_scans(to_test_results(filename_01), 2, min_replicates=1,
+        cls.groups = group_scans(to_test_results(filename_01), 2, min_replicates=1,
                              max_injection_time=0.0, merge_ms1=False)
-        pls = process_scans(to_test_results(filename_01), groups=groups, function_noise="median", snr_thres=3.0,
+        cls.pls = process_scans(to_test_results(filename_01), groups=cls.groups, function_noise="median", snr_thres=3.0,
                             ppm=5.0, min_fraction=0.5, rsd_thres=30.0, normalise=True,
                             report=to_test_results("processing_01.txt"), block_size=5000, ncpus=None)
 
-        cls.trees = create_spectral_trees(groups, pls)
+
+        cls.trees = create_spectral_trees(cls.groups, cls.pls)
 
         adducts = {"[M+H]+":  1.0072764}
         cls.db_single_adduct = to_test_results("test_mf_single_adduct.sqlite")
@@ -146,16 +147,40 @@ class AnnotationTestCase(unittest.TestCase):
 
 
     def test_time_limit_annotate(self):
-        ann_time = annotate_mf(spectral_trees=self.trees, db_out=self.db_single_adduct, ppm=10.0,
-                                            adducts={"[M+H]+":  1.0072764}, rules=True,
-                               mf_db="http://mfdb.bham.ac.uk", time_limit=0.001)
+        trees = create_spectral_trees(self.groups, self.pls)
+        db_out = to_test_results("test_time_limit_annotate.sqlite")
+        ann_time = annotate_mf(spectral_trees=trees, db_out=db_out,
+                               ppm=10.0, adducts={"[M+H]+":  1.0072764}, rules=True,
+                               mf_db="http://mfdb.bham.ac.uk", time_limit=1)
 
         # check no annotation performed and we output un-annotated trees
+        self.assertEqual(len(ann_time), 1)
+        self.assertDictEqual(ann_time[0].nodes["331.2271_0_7"], {'mz': 331.22706604003906, 'intensity': 205494704.0,
+                                                            'header': 'FTMS + c NSI Full ms [327.22-333.22]',
+                                                            'mslevel': 1, 'precursor': True})
+
+        conn = connect(db_out)
+        cursor = conn.cursor()
+        cursor.execute("select * from MF_1")
+        records = cursor.fetchall()
+
+        self.assertEqual(records, [])
 
     def test_time_limit_mf_filter(self):
-        filter_ann_time = filter_mf(self.trees, self.db_single_adduct_filtered, time_limit=0.001)
-
+        trees = create_spectral_trees(self.groups, self.pls)
+        db_out = to_test_results("test_time_limit_filter.sqlite")
+        ann_time = annotate_mf(spectral_trees=trees, db_out=db_out, ppm=10.0,
+                                            adducts={"[M+H]+":  1.0072764}, rules=True,
+                                mf_db="http://mfdb.bham.ac.uk")
+        filter_ann_time = filter_mf(ann_time, db_out, time_limit=1)
         # check no annotation performed and we output un-annotated trees
+        self.assertEqual(len(filter_ann_time), 6)
+
+        self.assertEqual(filter_ann_time[0].number_of_nodes(), 9)
+        self.assertEqual(filter_ann_time[0].number_of_edges(), 8)
+
+        self.assertEqual(filter_ann_time[5].number_of_nodes(), 37)
+        self.assertEqual(filter_ann_time[5].number_of_edges(), 36)
 
 
     def test_mf_tree(self):
