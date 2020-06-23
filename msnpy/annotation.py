@@ -93,7 +93,7 @@ class ApiMfdb:
 
 def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_out: str, ppm: float,
                 adducts: dict = {"[M+H]+": 1.0072764}, rules: bool = True, mf_db: str = "http://mfdb.bham.ac.uk",
-                prefix_inp: str = "", time_limit: int = None):
+                prefix_inp: str = "", time_limit: int = ''):
 
     for G in spectral_trees:
         signal.signal(signal.SIGALRM, signal_handler)

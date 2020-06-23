@@ -88,7 +88,7 @@ class AnnotationTestCase(unittest.TestCase):
         cursor = conn.cursor()
         cursor.execute("select * from MF_1")
         records = cursor.fetchall()
-        print(records)
+
         self.assertTupleEqual(records[0], ('331.2271_0_7', 1, 14, 30, 6, 1, 0, 1, 3, 1, 1, 1, 1, '[M+H]+', 331.22745740000005, 331.22706604003906, -1.18, 1, '1', 0))
         self.assertTupleEqual(records[5], ('331.2271_0_7', 6, 21, 30, 0, 3, 0, 0, 7, 1, 1, 1, 1, '[M+H]+', 331.2267714, 331.22706604003906, 0.89, 1, '1', 0))
         self.assertTupleEqual(records[-1], ('313.2163_1_31__295.2056_3_0', 583, 0, 2, 0, 1, 0, 0, 0, 1, 1, 0, 1, None, 18.010565, 18.0106583, -5.18, None, '2_3', 0))
