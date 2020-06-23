@@ -28,7 +28,6 @@ import pandas as pd
 import requests
 from .processing import mz_tol, mz_pair_diff_tol
 
-
 def signal_handler(signum, frame):
     raise TimeoutException()
 
@@ -453,6 +452,7 @@ def filter_mf_single_tree(G, path_db):
                            'MF1.FLAG >= 0 AND MF2.FLAG >= 0 AND MF3.FLAG >= 0']
 
             for atom in atoms:
+
                 sub_queries.append("MF3.{} <= MF1.{} AND MF3.{} + MF2.{} = MF1.{}".format(atom, atom, atom, atom, atom))
 
             # Apply constrains & Update edges
