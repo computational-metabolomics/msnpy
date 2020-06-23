@@ -96,13 +96,13 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
                 prefix_inp: str = "", time_limit: int = None):
 
     for G in spectral_trees:
+        signal.signal(signal.SIGALRM, signal_handler)
         if time_limit:
-            signal.signal(signal.SIGALRM, signal_handler)
             signal.alarm(int(time_limit))  # Time Limit
-            try:
-                annotate_mf_single(G, db_out, ppm, adducts, rules, mf_db, prefix_inp)
-            except TimeoutException as e:
-                print("Time out ", e)
+        try:
+            annotate_mf_single(G, db_out, ppm, adducts, rules, mf_db, prefix_inp)
+        except TimeoutException as e:
+            print("Time out ", e)
 
     return spectral_trees
 
