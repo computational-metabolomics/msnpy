@@ -28,6 +28,7 @@ import pandas as pd
 import requests
 from .processing import mz_tol, mz_pair_diff_tol
 
+
 def signal_handler(signum, frame):
     raise TimeoutException()
 
@@ -35,6 +36,7 @@ def signal_handler(signum, frame):
 class TimeoutException(Exception):
     def __init__(self, *args, **kwargs):
         pass
+
 
 class ApiMfdb:
 
@@ -95,6 +97,7 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
                 prefix_inp: str = "", time_limit: int = ''):
 
     for G in spectral_trees:
+
         signal.signal(signal.SIGALRM, signal_handler)
         if time_limit:
             signal.alarm(int(time_limit))  # Time Limit
@@ -221,14 +224,20 @@ def annotate_mf_single(G, db_out, ppm: float, adducts: dict = {"[M+H]+": 1.00727
     """.format(prefix), rows)
 
     cursor.execute("""
+    CREATE INDEX MF_ID_{}_IDX
+        ON MF{} (MF_ID);""".format(prefix, prefix))
+    cursor.execute("""
+    CREATE INDEX MF_ID_F_{}_IDX
+        ON MF{} (MF_ID, FLAG);""".format(prefix, prefix))
+    cursor.execute("""
     CREATE INDEX CHNOPS_ADDUCT_{}_IDX
         ON MF{} (MZ_ID, PRECURSOR, ADDUCT, C, H, N, O, P, S, FLAG);""".format(prefix, prefix))
     cursor.execute("""
     CREATE INDEX MZ_ID_{}_IDX
         ON MF{} (MZ_ID);""".format(prefix, prefix))
     cursor.execute("""
-    CREATE INDEX MF_MSL_P_F_{}_IDX
-        ON MF{} (MSLEVEL, PRECURSOR, FLAG)""".format(prefix, prefix))
+    CREATE INDEX MF_F_P_MSL_{}_IDX
+        ON MF{} (FLAG, PRECURSOR, MSLEVEL)""".format(prefix, prefix))
     cursor.execute("""
     CREATE INDEX MF_FLAG_{}_IDX
         ON MF{} (FLAG)""".format(prefix, prefix))
@@ -328,6 +337,7 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, 
     annotated_trees = []
 
     for G in trees:
+
         signal.signal(signal.SIGALRM, signal_handler)
         if time_limit:
             signal.alarm(time_limit)
@@ -344,9 +354,15 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, 
 
     return annotated_trees
 
+
+@profile
 def filter_mf_single_tree(G, path_db):
     conn = sqlite3.connect(path_db)
     cursor = conn.cursor()
+
+    cursor.execute("PRAGMA synchronous = OFF")
+    cursor.execute("PRAGMA journal_mode = OFF")
+
     atoms = ["C", "H", "N", "O", "P", "S"]
     start_time = time.time()
 
@@ -370,19 +386,9 @@ def filter_mf_single_tree(G, path_db):
         MZ_ID_FRAG      TEXT,
         MF_ID_PREC_FLAG INTEGER,
         MF_ID_NL_FLAG   INTEGER,
-        MF_ID_FRAG_FLAG INTERGER,
+        MF_ID_FRAG_FLAG INTEGER,
         PRIMARY KEY(MF_ID_PREC, MF_ID_NL, MF_ID_FRAG)
     )""".format(prefix))
-
-    cursor.execute("""
-    CREATE INDEX EDGES_IDS{}_IDX
-        ON EDGES{} (MF_ID_PREC, MF_ID_NL, MF_ID_FRAG);
-    """.format(prefix, prefix))
-
-    cursor.execute("""
-    CREATE INDEX EDGES_FLAGS{}_IDX
-        ON EDGES{} (MF_ID_PREC_FLAG, MF_ID_NL_FLAG, MF_ID_FRAG_FLAG)
-    """.format(prefix, prefix))
 
     cursor.execute("""DROP TABLE IF EXISTS MZ_PREC_FRAG{}""".format(prefix))
 
@@ -412,7 +418,8 @@ def filter_mf_single_tree(G, path_db):
         mz_id_prec, mz_id_frag, mz_id_nl = edge[0], edge[1], "{}__{}".format(edge[0], edge[1])
 
         sub_queries = ['MF1.MZ_ID = "{}" AND MF2.MZ_ID = "{}" AND MF3.MZ_ID = "{}" '
-                       'AND MF1.PRECURSOR = 1 AND MF1.ADDUCT = MF3.ADDUCT'.format(mz_id_prec, mz_id_nl, mz_id_frag),
+                       'AND MF1.PRECURSOR = 1 AND MF2.PRECURSOR IS NULL '
+                       'AND MF1.ADDUCT = MF3.ADDUCT AND MF2.ADDUCT IS NULL'.format(mz_id_prec, mz_id_nl, mz_id_frag),
                        'MF1.FLAG >= 0 AND MF2.FLAG >= 0 AND MF3.FLAG >= 0']
 
         # Number of C in the fragment MF should be smaller or equal to the number of C in the precursor MF
@@ -427,13 +434,36 @@ def filter_mf_single_tree(G, path_db):
         INSERT INTO MZ_PREC_FRAG{} (MZ_ID_PREC, MZ_ID_FRAG)
         VALUES ('{}','{}')""".format(prefix, mz_id_prec, mz_id_frag))
 
+        # cursor.execute("""
+        #         EXPLAIN QUERY PLAN
+        #                SELECT MF1.MF_ID, MF2.MF_ID, MF3.MF_ID, MF1.MASS, MF2.MASS, MF3.MASS, MF1.MZ_ID, MF2.MZ_ID, MF3.MZ_ID, 0, 0, 0
+        #                  FROM MF{} as MF1, MF{} as MF2, MF{} as MF3
+        #                 WHERE {}
+        #         """.format(prefix, prefix, prefix, " AND ".join(map(str, sub_queries))))
+        # print(cursor.fetchall())
+
         cursor.execute("""
         INSERT INTO EDGES{}
                SELECT MF1.MF_ID, MF2.MF_ID, MF3.MF_ID, MF1.MASS, MF2.MASS, MF3.MASS, MF1.MZ_ID, MF2.MZ_ID, MF3.MZ_ID, 0, 0, 0
                  FROM MF{} as MF1, MF{} as MF2, MF{} as MF3
                 WHERE {}
         """.format(prefix, prefix, prefix, prefix, " AND ".join(map(str, sub_queries))))
+
     conn.commit()
+
+    cursor.execute("""
+    CREATE INDEX EDGES_IDS{}_IDX
+        ON EDGES{} (MF_ID_PREC, MF_ID_NL, MF_ID_FRAG);
+    """.format(prefix, prefix))
+
+    cursor.execute("""
+    CREATE INDEX EDGES_FLAGS{}_IDX
+        ON EDGES{} (MF_ID_PREC_FLAG, MF_ID_NL_FLAG, MF_ID_FRAG_FLAG)
+    """.format(prefix, prefix))
+
+    conn.commit()
+
+
 
     cursor.execute("""
     SELECT MAX(CAST(mslevel as int))
@@ -476,8 +506,6 @@ def filter_mf_single_tree(G, path_db):
                 )
             """.format(prefix, loop, loop, loop, prefix, prefix, prefix, " AND ".join(map(str, sub_queries)), prefix,
                        prefix, prefix))  # AND MF1.FLAG >= 1 AND MF1.FLAG > 1  AND MF1.FLAG >= 1;
-        conn.commit()
-
         conn.commit()
 
         # Update flag MF table based on the flag in table edges and the number of loops
