@@ -19,14 +19,18 @@
 # along with MSnPy.  If not, see <https://www.gnu.org/licenses/>.
 #
 import signal
+import copy
 import collections
+import re
 import sqlite3
 import time
 from typing import Sequence
+import numpy as np
 import networkx as nx
 import pandas as pd
 import requests
 from .processing import mz_tol, mz_pair_diff_tol
+
 
 def signal_handler(signum, frame):
     raise TimeoutException()
@@ -35,6 +39,7 @@ def signal_handler(signum, frame):
 class TimeoutException(Exception):
     def __init__(self, *args, **kwargs):
         pass
+
 
 class ApiMfdb:
 
@@ -92,9 +97,10 @@ class ApiMfdb:
 
 def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_out: str, ppm: float,
                 adducts: dict = {"[M+H]+": 1.0072764}, rules: bool = True, mf_db: str = "http://mfdb.bham.ac.uk",
-                prefix_inp: str = "", time_limit: int = ''):
+                prefix_inp: str = "", time_limit: int = 0):
 
     for G in spectral_trees:
+
         signal.signal(signal.SIGALRM, signal_handler)
         if time_limit:
             signal.alarm(int(time_limit))  # Time Limit
@@ -111,6 +117,7 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
 
 def annotate_mf_single(G, db_out, ppm: float, adducts: dict = {"[M+H]+": 1.0072764}, rules: bool = True,
                        mf_db: str = "http://mfdb.bham.ac.uk", prefix_inp: str = ""):
+
     conn = sqlite3.connect(db_out)
     cursor = conn.cursor()
 
@@ -190,7 +197,7 @@ def annotate_mf_single(G, db_out, ppm: float, adducts: dict = {"[M+H]+": 1.00727
 
             if len(records_mf) > 0:
                 for mf in records_mf:
-                    ppm_error = round((mf["mass"] - edge[2]['mzdiff']) / (mf["mass"] * 0.000001), 2)
+                    ppm_error = round((edge[2]['mzdiff'] - mf["mass"]) / (mf["mass"] * 0.000001), 2)
                     values = ("{}__{}".format(edge[0], edge[1]), mf_id,
                               mf["atoms"]["C"], mf["atoms"]["H"],
                               mf["atoms"]["N"], mf["atoms"]["O"],
@@ -207,12 +214,6 @@ def annotate_mf_single(G, db_out, ppm: float, adducts: dict = {"[M+H]+": 1.00727
                     edge[2]['mzdiff'], None, "{}_{}".format(node_i["mslevel"], node_j["mslevel"]),
                     None, None, None, None, None, 0,)
                 rows.append(values)
-                ####################################
-                # else:
-                #    values = ("{}__{}".format(edge[0], edge[1]), None, None, None, None, None, None, None, None, None, None,
-                #              edge[2]['mzdiff'], None, "{}_{}".format(node_i["mslevel"], node_j["mslevel"]),
-                #              None, None, None, None, None, 0,)
-                #    rows.append(values)
 
     cursor.executemany("""
     INSERT INTO MF{}
@@ -221,14 +222,20 @@ def annotate_mf_single(G, db_out, ppm: float, adducts: dict = {"[M+H]+": 1.00727
     """.format(prefix), rows)
 
     cursor.execute("""
+    CREATE INDEX MF_ID_{}_IDX
+        ON MF{} (MF_ID);""".format(prefix, prefix))
+    cursor.execute("""
+    CREATE INDEX MF_ID_F_{}_IDX
+        ON MF{} (MF_ID, FLAG);""".format(prefix, prefix))
+    cursor.execute("""
     CREATE INDEX CHNOPS_ADDUCT_{}_IDX
         ON MF{} (MZ_ID, PRECURSOR, ADDUCT, C, H, N, O, P, S, FLAG);""".format(prefix, prefix))
     cursor.execute("""
     CREATE INDEX MZ_ID_{}_IDX
         ON MF{} (MZ_ID);""".format(prefix, prefix))
     cursor.execute("""
-    CREATE INDEX MF_MSL_P_F_{}_IDX
-        ON MF{} (MSLEVEL, PRECURSOR, FLAG)""".format(prefix, prefix))
+    CREATE INDEX MF_F_P_MSL_{}_IDX
+        ON MF{} (FLAG, PRECURSOR, MSLEVEL)""".format(prefix, prefix))
     cursor.execute("""
     CREATE INDEX MF_FLAG_{}_IDX
         ON MF{} (FLAG)""".format(prefix, prefix))
@@ -236,7 +243,7 @@ def annotate_mf_single(G, db_out, ppm: float, adducts: dict = {"[M+H]+": 1.00727
     conn.close()
 
 
-def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int, prefix: str):
+def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int, remove: bool = True, prefix: str = ""):
 
     conn = sqlite3.connect(path_db)
     cursor = conn.cursor()
@@ -272,6 +279,7 @@ def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int
         records = cursor.fetchall()
 
         GG = G.copy()
+
         atoms = ["C", "H", "N", "O", "P", "S"]
         for record in records:
 
@@ -302,56 +310,65 @@ def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int
                 for mf in cursor.fetchall():
                     n = mf[0].split("__")
                     if "mf" not in GG[n[0]][n[1]]:
-                        GG[n[0]][n[1]]["mf"] = {}
+                       GG[n[0]][n[1]]["mf"] = {}
                     if mf[1] not in GG[n[0]][n[1]]["mf"]:
                         GG[n[0]][n[1]]["mf"][str(mf[1])] = {"mass": float(mf[9]), "mf": print_formula(collections.OrderedDict(zip(atoms, mf[2:8])))}
 
         #print "N:", GG.number_of_nodes(), "E:", GG.number_of_edges()
-        nodes = GG.copy().nodes(data=True)
-        for node in nodes:
-            if "mf" not in node[1]:
-                GG.remove_node(node[0])
-        GG.graph["id"] = "{}_{}".format(GG.graph["id"], mf_prec[0])
+        if remove:
 
+            nodes = copy.deepcopy(GG.nodes(data=True))
+            for node in nodes:
+                if "mf" not in node[1]:
+                    GG.remove_node(node[0])
+
+        GG.graph["id"] = "{}_{}".format(GG.graph["id"], mf_prec[0])
         mft.append(GG)
+
+    if not mfs_precs:
+        mft.append(G)
 
     conn.close()
     return mft
 
 
-def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, time_limit: int = ''):
+def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, remove: bool = True, time_limit: int = 0):
 
-    #http://www.sqlstyle.guide/
-
-    print('filter mf')
+    # http://www.sqlstyle.guide/
 
     annotated_trees = []
 
     for G in trees:
+
         signal.signal(signal.SIGALRM, signal_handler)
         if time_limit:
             signal.alarm(time_limit)
-
         try:
-            filtered_tree = filter_mf_single_tree(G, path_db)
+            filtered_tree = filter_mf_single_tree(G, path_db, remove)
             if filtered_tree:
                 annotated_trees.extend(filtered_tree)
         except TimeoutException as e:
-            print("Time out ", e)
+            annotated_trees.extend([G])
+            print("Time out for spectral tree: {}".format(G.graph["id"]), e)
 
         if time_limit:
             signal.alarm(0)
 
     return annotated_trees
 
-def filter_mf_single_tree(G, path_db):
+
+# @profile
+def filter_mf_single_tree(G, path_db, remove):
     conn = sqlite3.connect(path_db)
     cursor = conn.cursor()
+
+    cursor.execute("PRAGMA synchronous = OFF")
+    cursor.execute("PRAGMA journal_mode = OFF")
+
     atoms = ["C", "H", "N", "O", "P", "S"]
     start_time = time.time()
 
     prefix = "_{}".format(G.graph["id"])
-    print("Filtering group {}".format(G.graph["id"]))
 
     ################################################################
     # TABLES: EDGES AND MZ_PREC_FRAG
@@ -370,19 +387,9 @@ def filter_mf_single_tree(G, path_db):
         MZ_ID_FRAG      TEXT,
         MF_ID_PREC_FLAG INTEGER,
         MF_ID_NL_FLAG   INTEGER,
-        MF_ID_FRAG_FLAG INTERGER,
+        MF_ID_FRAG_FLAG INTEGER,
         PRIMARY KEY(MF_ID_PREC, MF_ID_NL, MF_ID_FRAG)
     )""".format(prefix))
-
-    cursor.execute("""
-    CREATE INDEX EDGES_IDS{}_IDX
-        ON EDGES{} (MF_ID_PREC, MF_ID_NL, MF_ID_FRAG);
-    """.format(prefix, prefix))
-
-    cursor.execute("""
-    CREATE INDEX EDGES_FLAGS{}_IDX
-        ON EDGES{} (MF_ID_PREC_FLAG, MF_ID_NL_FLAG, MF_ID_FRAG_FLAG)
-    """.format(prefix, prefix))
 
     cursor.execute("""DROP TABLE IF EXISTS MZ_PREC_FRAG{}""".format(prefix))
 
@@ -402,8 +409,8 @@ def filter_mf_single_tree(G, path_db):
 
     improvement = [cursor.fetchone()[0]]
 
-    if G.number_of_nodes() == 0:
-        return ''
+    # if G.number_of_nodes() == 0:
+    #    return ""
 
     # Insert all inital edges
     for edge in [edge for edge in G.edges(data=True) if edge[2]["type"] == "e" and edge[2]["mzdiff"] > 0.5]:
@@ -412,7 +419,8 @@ def filter_mf_single_tree(G, path_db):
         mz_id_prec, mz_id_frag, mz_id_nl = edge[0], edge[1], "{}__{}".format(edge[0], edge[1])
 
         sub_queries = ['MF1.MZ_ID = "{}" AND MF2.MZ_ID = "{}" AND MF3.MZ_ID = "{}" '
-                       'AND MF1.PRECURSOR = 1 AND MF1.ADDUCT = MF3.ADDUCT'.format(mz_id_prec, mz_id_nl, mz_id_frag),
+                       'AND MF1.PRECURSOR = 1 AND MF2.PRECURSOR IS NULL '
+                       'AND MF1.ADDUCT = MF3.ADDUCT AND MF2.ADDUCT IS NULL'.format(mz_id_prec, mz_id_nl, mz_id_frag),
                        'MF1.FLAG >= 0 AND MF2.FLAG >= 0 AND MF3.FLAG >= 0']
 
         # Number of C in the fragment MF should be smaller or equal to the number of C in the precursor MF
@@ -427,12 +435,33 @@ def filter_mf_single_tree(G, path_db):
         INSERT INTO MZ_PREC_FRAG{} (MZ_ID_PREC, MZ_ID_FRAG)
         VALUES ('{}','{}')""".format(prefix, mz_id_prec, mz_id_frag))
 
+        # cursor.execute("""
+        #         EXPLAIN QUERY PLAN
+        #                SELECT MF1.MF_ID, MF2.MF_ID, MF3.MF_ID, MF1.MASS, MF2.MASS, MF3.MASS, MF1.MZ_ID, MF2.MZ_ID, MF3.MZ_ID, 0, 0, 0
+        #                  FROM MF{} as MF1, MF{} as MF2, MF{} as MF3
+        #                 WHERE {}
+        #         """.format(prefix, prefix, prefix, " AND ".join(map(str, sub_queries))))
+        # print(cursor.fetchall())
+
         cursor.execute("""
         INSERT INTO EDGES{}
                SELECT MF1.MF_ID, MF2.MF_ID, MF3.MF_ID, MF1.MASS, MF2.MASS, MF3.MASS, MF1.MZ_ID, MF2.MZ_ID, MF3.MZ_ID, 0, 0, 0
                  FROM MF{} as MF1, MF{} as MF2, MF{} as MF3
                 WHERE {}
         """.format(prefix, prefix, prefix, prefix, " AND ".join(map(str, sub_queries))))
+
+    conn.commit()
+
+    cursor.execute("""
+    CREATE INDEX EDGES_IDS{}_IDX
+        ON EDGES{} (MF_ID_PREC, MF_ID_NL, MF_ID_FRAG);
+    """.format(prefix, prefix))
+
+    cursor.execute("""
+    CREATE INDEX EDGES_FLAGS{}_IDX
+        ON EDGES{} (MF_ID_PREC_FLAG, MF_ID_NL_FLAG, MF_ID_FRAG_FLAG)
+    """.format(prefix, prefix))
+
     conn.commit()
 
     cursor.execute("""
@@ -476,8 +505,6 @@ def filter_mf_single_tree(G, path_db):
                 )
             """.format(prefix, loop, loop, loop, prefix, prefix, prefix, " AND ".join(map(str, sub_queries)), prefix,
                        prefix, prefix))  # AND MF1.FLAG >= 1 AND MF1.FLAG > 1  AND MF1.FLAG >= 1;
-        conn.commit()
-
         conn.commit()
 
         # Update flag MF table based on the flag in table edges and the number of loops
@@ -619,18 +646,13 @@ def filter_mf_single_tree(G, path_db):
         """.format(prefix))
         improvement.append(cursor.fetchone()[0])
 
-    print("MF AFTER CONSTRAINS: ", ", ".join(map(str, improvement)))
+    # print("MF AFTER CONSTRAINS: ", ", ".join(map(str, improvement)))
 
-    mf_tree_out = mf_tree(G, path_db, max_mslevel, prefix)
+    mf_tree_out = mf_tree(G, path_db, max_mslevel, remove, prefix)
 
     conn.close()
 
-    if mf_tree_out:
-        return mf_tree_out
-    else:
-        return ''
-
-
+    return mf_tree_out
 
 
 def print_formula(atom_counts: dict):
@@ -651,41 +673,101 @@ def print_formula(atom_counts: dict):
 
 def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], rank_threshold: int = 0):
 
-    columns = ["TreeID", 'GroupID', 'MolecularFormulaID', 'MolecularFormula', 'Adduct', 'Rank', 'TotalRanks', 'RankedEqual', 'Trees', 'NeutralLossesExplained']
+    columns = ["tree_id", "group_id", "mz", "scan_events", "max_mslevel",
+               "mf_id", "molecular_formula", "adduct", "mass", "ppm_error",
+               "rank", "total_ranks", "ranked_equal", "trees",
+               "neutral_losses_explained"] #, "average_number_mf_edge"]
     df = pd.DataFrame(columns=columns)
+
+    def _scan_events(headers):
+        scan_events = ["ms1"]
+        for header in headers:
+            info = re.findall(r'(ms\d+) ([\w\.-]+)@([a-zA-Z]+\d+\.\d+)', header)
+            if len(info) >= 1:
+                for match in info:
+                    info_str = "{}@{}".format(match[0], match[2])
+                    if info_str not in scan_events:
+                        scan_events.append(info_str)
+        return scan_events
 
     annotated_trees = collections.OrderedDict()
     for graph in trees:
-        tree_id = graph.graph["id"].split("_")
-        annotated_trees.setdefault(tree_id[0], []).append(graph)
+
+        if isinstance(graph.graph["id"], int) and "_" not in str(graph.graph["id"]):
+            group_id = str(graph.graph["id"])  # Tree without mf annotations
+        else:
+            group_id = graph.graph["id"].split("_")[0]
+        annotated_trees.setdefault(group_id, []).append(graph)
 
     for i, graphs in enumerate(annotated_trees.values()):
 
-        if len(graphs) == 0:
-            continue
-
         df_subset = pd.DataFrame(columns=columns)
-        for graph in graphs:
-            mf_id = graph.graph["id"].split("_")[1]
-            group_id = graph.graph["id"].split("_")[0]
-            mf = str(graph.nodes[list(graph.nodes())[0]]["mf"][str(mf_id)]["mf"])
-            adduct = str(graph.nodes[list(graph.nodes())[0]]["mf"][str(mf_id)]["adduct"])
-            # print(list(graph.nodes(data=True))[0])
-            values = [graph.graph["id"], group_id, mf_id, mf, adduct, 0, 0, 0, len(graphs), graph.number_of_edges()]#, mf_str, ion_str]
+
+        if len(graphs) == 1 and isinstance(graphs[0].graph["id"], int):
+            max_mslevel = max(nx.get_node_attributes(graph, 'mslevel').values())
+            headers = list(nx.get_node_attributes(graph, 'header').values())
+            scan_events = ",".join(map(str, _scan_events(headers)))
+            prec_node = list(graphs[0].nodes(data=True))[0]
+            if prec_node[1]["precursor"] and prec_node[1]["mslevel"] == 1:
+                mz = prec_node[1]["mz"]
+            else:
+                mz = np.nan
+            values = [str(graphs[0].graph["id"]), graphs[0].graph["id"], mz, scan_events, max_mslevel,
+                      np.nan, np.nan, np.nan, np.nan, np.nan,
+                      0, 0, 0, len(graphs),
+                      0]
             d = collections.OrderedDict(zip(columns, values))
             df_subset = df_subset.append(d, ignore_index=True)
+            df = pd.concat([df, df_subset], ignore_index=True)
+        else:
+            for graph in graphs:
+                l = []
+                for e in list(graph.edges(data=True)):
+                    l.append(len(e[2]["mf"]))
+                    print(len(e[2]["mf"]))
+                avg_mf_per_edge = sum(l)/float(len(l))
 
-        df_subset["Rank"] = df_subset['NeutralLossesExplained'].rank(method='dense', ascending=False).astype(int)
-        df_subset['RankedEqual'] = df_subset.groupby('NeutralLossesExplained')['NeutralLossesExplained'].transform('count')
-        df_subset['TotalRanks'] = df_subset['Rank'].nunique()
-        df_subset = df_subset.sort_values(by=['Rank', 'MolecularFormulaID'])
-        df = pd.concat([df, df_subset], ignore_index=True)
+                mf_group_id = graph.graph["id"].split("_")
+                mf_id = int(mf_group_id[1])
+                group_id = int(mf_group_id[0])
+                max_mslevel = max(nx.get_node_attributes(graph, 'mslevel').values())
+                headers = list(nx.get_node_attributes(graph, 'header').values())
+                scan_events = ",".join(map(str, _scan_events(headers)))
+                prec_node = list(graph.nodes())[0]
+                mz = graph.nodes[prec_node]["mz"]
+                mf = str(graph.nodes[prec_node]["mf"][str(mf_id)]["mf"])
+                adduct = str(graph.nodes[prec_node]["mf"][str(mf_id)]["adduct"])
+                exact_mass = graph.nodes[prec_node]["mf"][str(mf_id)]["mass"]
+                ppm_error = float(mz - exact_mass) / (exact_mass * 0.000001)
+                values = [graph.graph["id"], group_id, mz, scan_events, max_mslevel,
+                          mf_id, mf, adduct, exact_mass, ppm_error,
+                          0, 0, 0, len(graphs),
+                          graph.number_of_edges()]
+                d = collections.OrderedDict(zip(columns, values))
+                df_subset = df_subset.append(d, ignore_index=True)
+
+            df_subset["rank"] = df_subset['neutral_losses_explained'].rank(method='dense', ascending=False).astype(int)
+            df_subset['ranked_equal'] = df_subset.groupby('neutral_losses_explained')['neutral_losses_explained'].transform('count')
+            df_subset['total_ranks'] = df_subset['rank'].nunique()
+            df_subset = df_subset.sort_values(by=['rank', 'mf_id'])
+            df = pd.concat([df, df_subset], ignore_index=True)
+
+    # Workaround for Pandas casting INT fo Float when Nan is present
+    if df.isnull().sum().sum() > 0:
+        for c in columns:
+            if c not in ["tree_id", "mz", "scan_events",
+                         "molecular_formula", "adduct", "mass", "ppm_error"]:
+                df[c] = df[c].astype('Int64')
 
     for G in trees:
-        G.graph["rank"] = int(df[df["TreeID"] == G.graph["id"]]["Rank"])
-        G.graph["mf_id"] =  int(df[df["TreeID"] == G.graph["id"]]["MolecularFormulaID"])
+        G.graph["rank"] = int(df[df["tree_id"] == str(G.graph["id"])]["rank"].iloc[0])
+        G.graph["mf_id"] = df[df["tree_id"] == str(G.graph["id"])]["mf_id"].iloc[0]
+        if pd.isna(G.graph["mf_id"]):
+            G.graph["mf_id"] = None
+        else:
+            G.graph["mf_id"] = int(G.graph["mf_id"])
 
-    trees_ranked = sorted(trees, key=lambda i: (int(i.graph['id'].split("_")[0]), i.graph['rank'], i.graph["mf_id"]))
+    trees_ranked = sorted(trees, key=lambda i: (int(str(i.graph['id']).split("_")[0]), i.graph['rank'], i.graph["mf_id"]))
     if rank_threshold > 0:
         trees_ranked = [tree for tree in trees_ranked if tree.graph["rank"] <= rank_threshold]
 
