@@ -224,11 +224,16 @@ def main(): # pragma: no cover
 
     parser_ast.add_argument('-f', '--filter',
                             action='store_true', required=False,
-                            help="Filter the spectral tree annotations.")
+                            help="Filter the spectral tree annotations using fragmentation consistency rules.")
+
+    parser_ast.add_argument('-n', '--remove-nodes',
+                            action='store_true', required=False,
+                            help="Remove fragments from that have not been annotated a molecular formula (after filtering).")
 
     parser_ast.add_argument('-t', '--time-limit',
-                            default=None, type=int, required=False,
-                            help="Time limit (seconds) for each tree to be processed for annotation")
+                            default=0, type=int, required=False,
+                            help="Time limit (seconds) for each tree to be processed for annotation."
+                                 "Set to 0 to not apply a time limit (default).")
 
     #################################
     # RANK SPECTRAL TREES
@@ -383,7 +388,7 @@ def main(): # pragma: no cover
                          time_limit=args.time_limit)
 
         if args.filter:
-            st = filter_mf(st, args.output_db, args.time_limit)
+            st = filter_mf(st, args.output_db, args.remove_nodes, args.time_limit)
         save_trees(st, args.output_trees, format="json")
 
     if args.step == "rank-spectral-trees":
