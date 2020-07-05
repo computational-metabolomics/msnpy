@@ -145,43 +145,43 @@ class AnnotationTestCase(unittest.TestCase):
         records = cursor.fetchall()
         self.assertListEqual(records, [('MF_1',), ('EDGES_1',), ('MZ_PREC_FRAG_1',)])
 
-
     def test_time_limit_annotate(self):
-        trees = create_spectral_trees(self.groups, self.pls)
-        db_out = to_test_results("test_time_limit_annotate.sqlite")
-        ann_time = annotate_mf(spectral_trees=trees, db_out=db_out,
-                               ppm=10.0, adducts={"[M+H]+":  1.0072764}, rules=True,
-                               mf_db="http://mfdb.bham.ac.uk", time_limit=1)
+        if os.name != "nt":
+            trees = create_spectral_trees(self.groups, self.pls)
+            db_out = to_test_results("test_time_limit_annotate.sqlite")
+            ann_time = annotate_mf(spectral_trees=trees, db_out=db_out,
+                                   ppm=10.0, adducts={"[M+H]+":  1.0072764}, rules=True,
+                                   mf_db="http://mfdb.bham.ac.uk", time_limit=1)
 
-        # check no annotation performed and we output un-annotated trees
-        self.assertEqual(len(ann_time), 1)
-        self.assertDictEqual(ann_time[0].nodes["331.2271_0_7"], {'mz': 331.22706604003906, 'intensity': 205494704.0,
-                                                            'header': 'FTMS + c NSI Full ms [327.22-333.22]',
-                                                            'mslevel': 1, 'precursor': True})
+            # check no annotation performed and we output un-annotated trees
+            self.assertEqual(len(ann_time), 1)
+            self.assertDictEqual(ann_time[0].nodes["331.2271_0_7"], {'mz': 331.22706604003906, 'intensity': 205494704.0,
+                                                                'header': 'FTMS + c NSI Full ms [327.22-333.22]',
+                                                                'mslevel': 1, 'precursor': True})
 
-        conn = connect(db_out)
-        cursor = conn.cursor()
-        cursor.execute("select * from MF_1")
-        records = cursor.fetchall()
+            conn = connect(db_out)
+            cursor = conn.cursor()
+            cursor.execute("select * from MF_1")
+            records = cursor.fetchall()
 
-        self.assertEqual(records, [])
+            self.assertEqual(records, [])
 
     def test_time_limit_mf_filter(self):
-        trees = create_spectral_trees(self.groups, self.pls)
-        db_out = to_test_results("test_time_limit_filter.sqlite")
-        ann_time = annotate_mf(spectral_trees=trees, db_out=db_out, ppm=10.0,
-                                            adducts={"[M+H]+":  1.0072764}, rules=True,
-                                mf_db="http://mfdb.bham.ac.uk")
-        filter_ann_time = filter_mf(ann_time, db_out, time_limit=1)
-        # check no annotation performed and we output un-annotated trees
-        self.assertEqual(len(filter_ann_time), 6)
+        if os.name != "nt":
+            trees = create_spectral_trees(self.groups, self.pls)
+            db_out = to_test_results("test_time_limit_filter.sqlite")
+            ann_time = annotate_mf(spectral_trees=trees, db_out=db_out, ppm=10.0,
+                                                adducts={"[M+H]+":  1.0072764}, rules=True,
+                                    mf_db="http://mfdb.bham.ac.uk")
+            filter_ann_time = filter_mf(ann_time, db_out, time_limit=1)
+            # check no annotation performed and we output un-annotated trees
+            self.assertEqual(len(filter_ann_time), 6)
 
-        self.assertEqual(filter_ann_time[0].number_of_nodes(), 9)
-        self.assertEqual(filter_ann_time[0].number_of_edges(), 8)
+            self.assertEqual(filter_ann_time[0].number_of_nodes(), 9)
+            self.assertEqual(filter_ann_time[0].number_of_edges(), 8)
 
-        self.assertEqual(filter_ann_time[5].number_of_nodes(), 37)
-        self.assertEqual(filter_ann_time[5].number_of_edges(), 36)
-
+            self.assertEqual(filter_ann_time[5].number_of_nodes(), 37)
+            self.assertEqual(filter_ann_time[5].number_of_edges(), 36)
 
     def test_mf_tree(self):
         mft = mf_tree(self.trees[0], self.db_single_adduct_filtered, max_mslevel=5, prefix="_1")

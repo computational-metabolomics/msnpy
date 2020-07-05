@@ -19,6 +19,7 @@
 # along with MSnPy.  If not, see <https://www.gnu.org/licenses/>.
 #
 import signal
+import os
 import copy
 import collections
 import re
@@ -101,16 +102,19 @@ def annotate_mf(spectral_trees: Sequence[nx.classes.ordered.OrderedDiGraph], db_
 
     for G in spectral_trees:
 
-        signal.signal(signal.SIGALRM, signal_handler)
-        if time_limit:
-            signal.alarm(int(time_limit))  # Time Limit
-        try:
-            annotate_mf_single(G, db_out, ppm, adducts, rules, mf_db, prefix_inp)
-        except TimeoutException as e:
-            print("Time out ", e)
+        if os.name != "nt":
+            signal.signal(signal.SIGALRM, signal_handler)
+            if time_limit:
+                signal.alarm(int(time_limit))  # Time Limit
+            try:
+                annotate_mf_single(G, db_out, ppm, adducts, rules, mf_db, prefix_inp)
+            except TimeoutException as e:
+                print("Time out ", e)
 
-        if time_limit:
-            signal.alarm(0)
+            if time_limit:
+                signal.alarm(0)
+        else:
+            annotate_mf_single(G, db_out, ppm, adducts, rules, mf_db, prefix_inp)
 
     return spectral_trees
 
@@ -340,19 +344,26 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, 
 
     for G in trees:
 
-        signal.signal(signal.SIGALRM, signal_handler)
-        if time_limit:
-            signal.alarm(time_limit)
-        try:
+        if os.name != "nt":
+            signal.signal(signal.SIGALRM, signal_handler)
+            if time_limit:
+                signal.alarm(time_limit)
+            try:
+                filtered_tree = filter_mf_single_tree(G, path_db, remove)
+                if filtered_tree:
+                    annotated_trees.extend(filtered_tree)
+            except TimeoutException as e:
+                annotated_trees.extend([G])
+                print("Time out for spectral tree: {}".format(G.graph["id"]), e)
+
+            if time_limit:
+                signal.alarm(0)
+        else:
             filtered_tree = filter_mf_single_tree(G, path_db, remove)
             if filtered_tree:
                 annotated_trees.extend(filtered_tree)
-        except TimeoutException as e:
-            annotated_trees.extend([G])
-            print("Time out for spectral tree: {}".format(G.graph["id"]), e)
-
-        if time_limit:
-            signal.alarm(0)
+            else:
+                annotated_trees.extend([G])
 
     return annotated_trees
 
