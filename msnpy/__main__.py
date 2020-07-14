@@ -226,9 +226,10 @@ def main(): # pragma: no cover
                             action='store_true', required=False,
                             help="Filter the spectral tree annotations using fragmentation consistency rules.")
 
-    parser_ast.add_argument('-n', '--remove-nodes',
+    parser_ast.add_argument('-k', '--keep-fragments',
                             action='store_true', required=False,
-                            help="Remove fragments from that have not been annotated a molecular formula (after filtering).")
+                            help="Keep fragments in the tree that have not been "
+                                 "annotated a molecular formula (after filtering).")
 
     parser_ast.add_argument('-t', '--time-limit',
                             default=0, type=int, required=False,
@@ -388,7 +389,7 @@ def main(): # pragma: no cover
                          time_limit=args.time_limit)
 
         if args.filter:
-            st = filter_mf(st, args.output_db, args.remove_nodes, args.time_limit)
+            st = filter_mf(st, args.output_db, args.keep_fragments, args.time_limit)
         save_trees(st, args.output_trees, format="json")
 
     if args.step == "rank-spectral-trees":

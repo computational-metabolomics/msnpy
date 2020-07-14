@@ -247,7 +247,7 @@ def annotate_mf_single(G, db_out, ppm: float, adducts: dict = {"[M+H]+": 1.00727
     conn.close()
 
 
-def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int, remove: bool = True, prefix: str = ""):
+def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int, keep_fragments: bool = False, prefix: str = ""):
 
     conn = sqlite3.connect(path_db)
     cursor = conn.cursor()
@@ -319,7 +319,7 @@ def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int
                         GG[n[0]][n[1]]["mf"][str(mf[1])] = {"mass": float(mf[9]), "mf": print_formula(collections.OrderedDict(zip(atoms, mf[2:8])))}
 
         #print "N:", GG.number_of_nodes(), "E:", GG.number_of_edges()
-        if remove:
+        if not keep_fragments:
 
             nodes = copy.deepcopy(GG.nodes(data=True))
             for node in nodes:
@@ -336,7 +336,7 @@ def mf_tree(G: nx.classes.ordered.OrderedDiGraph, path_db: str, max_mslevel: int
     return mft
 
 
-def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, remove: bool = True, time_limit: int = 0):
+def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, keep_fragments: bool = False, time_limit: int = 0):
 
     # http://www.sqlstyle.guide/
 
@@ -349,7 +349,7 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, 
             if time_limit:
                 signal.alarm(time_limit)
             try:
-                filtered_tree = filter_mf_single_tree(G, path_db, remove)
+                filtered_tree = filter_mf_single_tree(G, path_db, keep_fragments)
                 if filtered_tree:
                     annotated_trees.extend(filtered_tree)
             except TimeoutException as e:
@@ -369,7 +369,7 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, 
 
 
 # @profile
-def filter_mf_single_tree(G, path_db, remove):
+def filter_mf_single_tree(G, path_db, keep_fragments):
     conn = sqlite3.connect(path_db)
     cursor = conn.cursor()
 
@@ -659,7 +659,7 @@ def filter_mf_single_tree(G, path_db, remove):
 
     # print("MF AFTER CONSTRAINS: ", ", ".join(map(str, improvement)))
 
-    mf_tree_out = mf_tree(G, path_db, max_mslevel, remove, prefix)
+    mf_tree_out = mf_tree(G, path_db, max_mslevel, keep_fragments, prefix)
 
     conn.close()
 
@@ -732,11 +732,6 @@ def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], rank_threshold: 
             df = pd.concat([df, df_subset], ignore_index=True)
         else:
             for graph in graphs:
-                l = []
-                for e in list(graph.edges(data=True)):
-                    l.append(len(e[2]["mf"]))
-                    print(len(e[2]["mf"]))
-                avg_mf_per_edge = sum(l)/float(len(l))
 
                 mf_group_id = graph.graph["id"].split("_")
                 mf_id = int(mf_group_id[1])
@@ -750,10 +745,11 @@ def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], rank_threshold: 
                 adduct = str(graph.nodes[prec_node]["mf"][str(mf_id)]["adduct"])
                 exact_mass = graph.nodes[prec_node]["mf"][str(mf_id)]["mass"]
                 ppm_error = float(mz - exact_mass) / (exact_mass * 0.000001)
+                nl_explained = len([e for e in graph.edges(data=True) if "mf" in e[2]])
                 values = [graph.graph["id"], group_id, mz, scan_events, max_mslevel,
                           mf_id, mf, adduct, exact_mass, ppm_error,
                           0, 0, 0, len(graphs),
-                          graph.number_of_edges()]
+                          nl_explained]
                 d = collections.OrderedDict(zip(columns, values))
                 df_subset = df_subset.append(d, ignore_index=True)
 
