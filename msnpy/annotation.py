@@ -359,7 +359,7 @@ def filter_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], path_db: str, 
             if time_limit:
                 signal.alarm(0)
         else:
-            filtered_tree = filter_mf_single_tree(G, path_db, remove)
+            filtered_tree = filter_mf_single_tree(G, path_db, keep_fragments)
             if filtered_tree:
                 annotated_trees.extend(filtered_tree)
             else:
