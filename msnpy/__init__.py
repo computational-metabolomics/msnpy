@@ -22,5 +22,5 @@
 
 __author__ = 'Ralf Weber (r.j.weber@bham.ac.uk)'
 __credits__ = 'Ralf Weber (r.j.weber@bham.ac.uk)'
-__version__ = '1.0.0a6'
+__version__ = '1.0.0a7'
 __license__ = 'GPLv3'
