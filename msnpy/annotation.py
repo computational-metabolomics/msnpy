@@ -691,64 +691,72 @@ def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], rank_threshold: 
     df = pd.DataFrame(columns=columns)
 
     def _scan_events(headers):
-        scan_events = ["ms1"]
+        scan_events = []
         for header in headers:
-            info = re.findall(r'(ms\d+) ([\w\.-]+)@([a-zA-Z]+\d+\.\d+)', header)
-            if len(info) >= 1:
-                for match in info:
-                    info_str = "{}@{}".format(match[0], match[2])
-                    if info_str not in scan_events:
-                        scan_events.append(info_str)
+            if " ms " in header:
+                scan_events.append("ms1")
+            else:
+                info = re.findall(r'(ms\d+) ([\w\.-]+)@([a-zA-Z]+\d+\.\d+)', header)
+                if len(info) >= 1:
+                    for match in info:
+                        info_str = "{}@{}".format(match[0], match[2])
+                        if info_str not in scan_events:
+                            scan_events.append(info_str)
         return scan_events
 
     annotated_trees = collections.OrderedDict()
-    for graph in trees:
+    for tree in trees:
 
-        if isinstance(graph.graph["id"], int) and "_" not in str(graph.graph["id"]):
-            group_id = str(graph.graph["id"])  # Tree without mf annotations
+        if isinstance(tree.graph["id"], int) and "_" not in str(tree.graph["id"]):
+            group_id = str(tree.graph["id"])  # Tree without mf annotations
         else:
-            group_id = graph.graph["id"].split("_")[0]
-        annotated_trees.setdefault(group_id, []).append(graph)
+            group_id = tree.graph["id"].split("_")[0]
+        annotated_trees.setdefault(group_id, []).append(tree)
 
-    for i, graphs in enumerate(annotated_trees.values()):
+    for i, ats in enumerate(annotated_trees.values()):
 
         df_subset = pd.DataFrame(columns=columns)
 
-        if len(graphs) == 1 and isinstance(graphs[0].graph["id"], int):
-            max_mslevel = max(nx.get_node_attributes(graph, 'mslevel').values())
-            headers = list(nx.get_node_attributes(graph, 'header').values())
-            scan_events = ",".join(map(str, _scan_events(headers)))
-            prec_node = list(graphs[0].nodes(data=True))[0]
-            if prec_node[1]["precursor"] and prec_node[1]["mslevel"] == 1:
-                mz = prec_node[1]["mz"]
+        if len(ats) == 1 and isinstance(ats[0].graph["id"], int):
+
+            max_mslevel = max(nx.get_node_attributes(ats[0], 'mslevel').values(), default=np.nan)
+            nodes = list(ats[0].nodes(data=True))
+
+            mz = np.nan
+            if nodes:
+                headers = list(nx.get_node_attributes(ats[0], 'header').values())
+                scan_events = ",".join(map(str, _scan_events(headers)))
+                if nodes[0][1]["precursor"] and nodes[0][1]["mslevel"] == 1:
+                    mz = nodes[0][1]["mz"]
             else:
-                mz = np.nan
-            values = [str(graphs[0].graph["id"]), graphs[0].graph["id"], mz, scan_events, max_mslevel,
+                scan_events = np.nan
+
+            values = [str(ats[0].graph["id"]), ats[0].graph["id"], mz, scan_events, max_mslevel,
                       np.nan, np.nan, np.nan, np.nan, np.nan,
-                      0, 0, 0, len(graphs),
+                      0, 0, 0, len(ats),
                       0]
             d = collections.OrderedDict(zip(columns, values))
             df_subset = df_subset.append(d, ignore_index=True)
             df = pd.concat([df, df_subset], ignore_index=True)
         else:
-            for graph in graphs:
+            for tree in ats:
 
-                mf_group_id = graph.graph["id"].split("_")
+                mf_group_id = tree.graph["id"].split("_")
                 mf_id = int(mf_group_id[1])
                 group_id = int(mf_group_id[0])
-                max_mslevel = max(nx.get_node_attributes(graph, 'mslevel').values())
-                headers = list(nx.get_node_attributes(graph, 'header').values())
+                max_mslevel = max(nx.get_node_attributes(tree, 'mslevel').values())
+                headers = list(nx.get_node_attributes(tree, 'header').values())
                 scan_events = ",".join(map(str, _scan_events(headers)))
-                prec_node = list(graph.nodes())[0]
-                mz = graph.nodes[prec_node]["mz"]
-                mf = str(graph.nodes[prec_node]["mf"][str(mf_id)]["mf"])
-                adduct = str(graph.nodes[prec_node]["mf"][str(mf_id)]["adduct"])
-                exact_mass = graph.nodes[prec_node]["mf"][str(mf_id)]["mass"]
+                prec_node = list(tree.nodes())[0]
+                mz = tree.nodes[prec_node]["mz"]
+                mf = str(tree.nodes[prec_node]["mf"][str(mf_id)]["mf"])
+                adduct = str(tree.nodes[prec_node]["mf"][str(mf_id)]["adduct"])
+                exact_mass = tree.nodes[prec_node]["mf"][str(mf_id)]["mass"]
                 ppm_error = float(mz - exact_mass) / (exact_mass * 0.000001)
-                nl_explained = len([e for e in graph.edges(data=True) if "mf" in e[2]])
-                values = [graph.graph["id"], group_id, mz, scan_events, max_mslevel,
+                nl_explained = len([e for e in tree.edges(data=True) if "mf" in e[2]])
+                values = [tree.graph["id"], group_id, mz, scan_events, max_mslevel,
                           mf_id, mf, adduct, exact_mass, ppm_error,
-                          0, 0, 0, len(graphs),
+                          0, 0, 0, len(ats),
                           nl_explained]
                 d = collections.OrderedDict(zip(columns, values))
                 df_subset = df_subset.append(d, ignore_index=True)
@@ -766,13 +774,13 @@ def rank_mf(trees: Sequence[nx.classes.ordered.OrderedDiGraph], rank_threshold: 
                          "molecular_formula", "adduct", "mass", "ppm_error"]:
                 df[c] = df[c].astype('Int64')
 
-    for G in trees:
-        G.graph["rank"] = int(df[df["tree_id"] == str(G.graph["id"])]["rank"].iloc[0])
-        G.graph["mf_id"] = df[df["tree_id"] == str(G.graph["id"])]["mf_id"].iloc[0]
-        if pd.isna(G.graph["mf_id"]):
-            G.graph["mf_id"] = None
+    for tree in trees:
+        tree.graph["rank"] = int(df[df["tree_id"] == str(tree.graph["id"])]["rank"].iloc[0])
+        tree.graph["mf_id"] = df[df["tree_id"] == str(tree.graph["id"])]["mf_id"].iloc[0]
+        if pd.isna(tree.graph["mf_id"]):
+            tree.graph["mf_id"] = None
         else:
-            G.graph["mf_id"] = int(G.graph["mf_id"])
+            tree.graph["mf_id"] = int(tree.graph["mf_id"])
 
     trees_ranked = sorted(trees, key=lambda i: (int(str(i.graph['id']).split("_")[0]), i.graph['rank'], i.graph["mf_id"]))
     if rank_threshold > 0:
