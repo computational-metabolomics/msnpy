@@ -20,6 +20,7 @@
 #
 import signal
 import os
+import sys
 import copy
 import collections
 import re
@@ -49,12 +50,14 @@ class ApiMfdb:
     def __init__(self, url="https://mfdb.bham.ac.uk"):
         self.url = url
         self.url_mass_range = '{}/api/formula/mass_range/'.format(self.url)
-        r = self.request('{}/api/formula/mass/?mass=71.03711&tol=1&tol_unit=ppm&rules=1'.format(self.url))
+        r = self.request_call('{}/api/formula/mass/?mass=71.03711&tol=1&tol_unit=ppm&rules=1'.format(self.url))
         r.raise_for_status()
-        
-   def requests_retry_session(self, retries: int = 3, backoff_factor: float = 0.3,
-                              status_forcelist: tuple = (500, 502, 504), 
-                              session=None):
+
+    def requests_retry_session(self, retries: int = 5,
+                               backoff_factor: float = 1,
+                               status_forcelist: tuple = (500, 502, 504),
+                               session=None):
+
         # https://www.peterbe.com/plog/best-practice-with-retries-with-requests
         session = session or requests.Session()
         retry = Retry(
@@ -68,15 +71,21 @@ class ApiMfdb:
         session.mount('http://', adapter)
         session.mount('https://', adapter)
         return session
-    
-    def request(self, url: str, params: dict = None):
-        try:
-            response = requests_retry_session().get(url, params)
-        except Exception as x:
-            print('Request failed: ', x.__class__.__name__)
-            response = ''
+
+    def request_call(self, url: str, params: dict = None):
+        session = self.requests_retry_session()
+        # Leave exceptions to fail for now as want to check when error occurs
+        # in galaxy
+        # try:
+        if params:
+            response = session.get(url, params=params)
+        else:
+            response = session.get(url)
+        # except Exception as x:
+        #
+        session.close()
         return response
-    
+
     def select_mf(self, min_tol: float, max_tol: float, adducts: dict = None, rules: bool = True):
 
         mf_out = []
@@ -86,11 +95,12 @@ class ApiMfdb:
 
             params = {"lower": min_tol - adduct_mass,
                       "upper": max_tol - adduct_mass, "rules": int(rules)}
-            response = self.request(self.url_mass_range, params=params)
+            response = self.request_call(self.url_mass_range, params=params)
             
             # Check response is ok
             if not response:
                 continue
+
             resp_d = response.json()
 
             # check records key in response dict/json
