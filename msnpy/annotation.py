@@ -77,10 +77,7 @@ class ApiMfdb:
         # Leave exceptions to fail for now as want to check when error occurs
         # in galaxy
         # try:
-        if params:
-            response = session.get(url, params=params)
-        else:
-            response = session.get(url)
+        response = session.get(url, params=params)
         # except Exception as x:
         #
         session.close()
