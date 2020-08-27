@@ -20,6 +20,7 @@
 #
 import signal
 import os
+import sys
 import copy
 import collections
 import re
@@ -30,6 +31,8 @@ import numpy as np
 import networkx as nx
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 from .processing import mz_tol, mz_pair_diff_tol
 
 
@@ -47,8 +50,38 @@ class ApiMfdb:
     def __init__(self, url="https://mfdb.bham.ac.uk"):
         self.url = url
         self.url_mass_range = '{}/api/formula/mass_range/'.format(self.url)
-        r = requests.get('{}/api/formula/mass/?mass=71.03711&tol=1&tol_unit=ppm&rules=1'.format(self.url))
+        r = self.request_call('{}/api/formula/mass/?mass=71.03711&tol=1&tol_unit=ppm&rules=1'.format(self.url))
         r.raise_for_status()
+
+    def requests_retry_session(self, retries: int = 5,
+                               backoff_factor: float = 1,
+                               status_forcelist: tuple = (500, 502, 504),
+                               session=None):
+
+        # https://www.peterbe.com/plog/best-practice-with-retries-with-requests
+        session = session or requests.Session()
+        retry = Retry(
+            total=retries,
+            read=retries,
+            connect=retries,
+            backoff_factor=backoff_factor,
+            status_forcelist=status_forcelist,
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        return session
+
+    def request_call(self, url: str, params: dict = None):
+        session = self.requests_retry_session()
+        # Leave exceptions to fail for now as want to check when error occurs
+        # in galaxy
+        # try:
+        response = session.get(url, params=params)
+        # except Exception as x:
+        #
+        session.close()
+        return response
 
     def select_mf(self, min_tol: float, max_tol: float, adducts: dict = None, rules: bool = True):
 
@@ -59,11 +92,12 @@ class ApiMfdb:
 
             params = {"lower": min_tol - adduct_mass,
                       "upper": max_tol - adduct_mass, "rules": int(rules)}
-            response = requests.get(self.url_mass_range, params=params)
-
+            response = self.request_call(self.url_mass_range, params=params)
+            
             # Check response is ok
             if not response:
                 continue
+
             resp_d = response.json()
 
             # check records key in response dict/json
