@@ -74,13 +74,13 @@ class ApiMfdb:
 
     def request_call(self, url: str, params: dict = None):
         session = self.requests_retry_session()
-        # Leave exceptions to fail for now as want to check when error occurs
-        # in galaxy
-        # try:
-        response = session.get(url, params=params)
-        # except Exception as x:
-        #
+        try:
+            response = session.get(url, params=params)
+        except requests.exceptions.RetryError as e:
+            print(e)
+            response = ''
         session.close()
+        
         return response
 
     def select_mf(self, min_tol: float, max_tol: float, adducts: dict = None, rules: bool = True):
