@@ -74,11 +74,7 @@ class ApiMfdb:
 
     def request_call(self, url: str, params: dict = None):
         session = self.requests_retry_session()
-        try:
-            response = session.get(url, params=params)
-        except requests.exceptions.RetryError as e:
-            print(e)
-            response = ''
+        response = session.get(url, params=params)
         session.close()
         
         return response
