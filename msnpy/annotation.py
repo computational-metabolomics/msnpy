@@ -88,6 +88,10 @@ class ApiMfdb:
 
             params = {"lower": min_tol - adduct_mass,
                       "upper": max_tol - adduct_mass, "rules": int(rules)}
+            
+            if params["lower"] < 0.5 or params["upper"] < 0.5:
+                continue
+            
             response = self.request_call(self.url_mass_range, params=params)
             
             # Check response is ok
@@ -114,10 +118,6 @@ class ApiMfdb:
                      "HC": record['rules']['HC'],
                      "NOPSC": record['rules']['NOPSC']})
                 mf_id += 1
-            else:
-                pass
-                # print "Incorrect boundaries - min: {}  max: {}".format(min_tol_temp, max_tol_temp)
-                # sys.exit()
 
         # print min_tol, max_tol, len(mf_out)
         # print "----------------------------"
