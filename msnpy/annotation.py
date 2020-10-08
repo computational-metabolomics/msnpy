@@ -49,8 +49,8 @@ class ApiMfdb:
 
     def __init__(self, url="https://mfdb.bham.ac.uk"):
         self.url = url
-        self.url_mass_range = '{}/api/formula/mass_range/'.format(self.url)
-        r = self.request_call('{}/api/formula/mass/?mass=71.03711&tol=1&tol_unit=ppm&rules=1'.format(self.url))
+        self.url_mass_range = '{}/api/formula/mass_range'.format(self.url)
+        r = self.request_call('{}/api/formula/mass?mass=71.03711&tol=1&tol_unit=ppm&rules=1'.format(self.url))
         r.raise_for_status()
 
     def requests_retry_session(self, retries: int = 5,
