@@ -1,17 +1,17 @@
 MSnPy
 ======
-|Version| |Py versions| |Git| |Bioconda| |Build Status (Travis)| |Build Status (AppVeyor)| |License| |RTD doc| |codecov| |binder|
+|Version| |Py versions| |Git| |Bioconda| |Build Status| |Build Status (AppVeyor)| |License| |RTD doc| |codecov| |binder|
 
 Python package to process and annotate MSn fragmentation data
 
-- **Documentation:** https://msnpy.readthedocs.io/en/latest
+- **Documentation:** https://computational-metabolomics.github.io/msnpy
 - **Source:** https://github.com/computational-metabolomics/msnpy
 - **Bug reports:** https://github.com/computational-metabolomics/msnpy/issues
 
 Installation
 ------------
-See the `Installation page <https://msnpy.readthedocs.io/en/latest/introduction.html#installation>`__ of
-the `online documentation <https://msnpy.readthedocs.io/en/latest>`__.
+See the `Installation page <https://computational-metabolomics.github.io/msnpy/introduction.html#installation>`__ of
+the `online documentation <https://computational-metabolomics.github.io/msnpy/>`__.
 
 
 Command line
@@ -31,8 +31,8 @@ will help you to make the PR if you are new to `git`.
 
 Developers & Contributors
 -------------------------
- - Ralf J. M. Weber (r.j.weber@bham.ac.uk) - `University of Birmingham (UK) <https://www.birmingham.ac.uk/schools/biosciences/staff/profile.aspx?ReferenceId=156564&Name=dr-ralf-weber>`__
- - Thomas N. Lawson (more) - `University of Birmingham (UK) <http://www.birmingham.ac.uk/index.aspx>`__
+ - Ralf J. M. Weber (r.j.weber@bham.ac.uk) - `University of Birmingham (UK) <http://www.birmingham.ac.uk/index.aspx>`_
+ - Thomas N. Lawson (tnl495@bham.ac.uk) - `University of Birmingham (UK) <http://www.birmingham.ac.uk/index.aspx>`_
 
 
 License
@@ -40,8 +40,8 @@ License
 Released under the GNU General Public License v3.0 (see `LICENSE file <https://github.com/computational-metabolomics/msnpy/blob/master/LICENSE>`_)
 
 
-.. |Build Status (Travis)| image:: https://img.shields.io/travis/computational-metabolomics/msnpy.svg?style=flat&maxAge=3600&label=Travis-CI
-   :target: https://travis-ci.com/computational-metabolomics/msnpy
+.. |Build Status| image:: https://github.com/computational-metabolomics/msnpy/workflows/msnpy/badge.svg
+   :target: https://github.com/computational-metabolomics/msnpy/actions
 
 .. |Build Status (AppVeyor)| image:: https://img.shields.io/appveyor/ci/RJMW/msnpy.svg?style=flat&maxAge=3600&label=AppVeyor
    :target: https://ci.appveyor.com/project/RJMW/msnpy/branch/master
