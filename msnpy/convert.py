@@ -222,7 +222,6 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, skip_si
     return pls, merged_pls, ms1_precursors_pl
 
 
-
 def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_annotations=True, include_ms1=False):
 
     msp_params = {}
@@ -250,7 +249,6 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
         msp_params['resolution'] = 'RESOLUTION:'
         msp_params['fragmentation_mode'] = 'FRAGMENTATION_MODE:'
 
-
     with open(out_pth, "w+") as f:
         # Loop through peaklist
         idi = 0
@@ -260,7 +258,7 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
             if dt.shape[0] == 0:
                 continue
 
-            if not include_ms1 and (re.search('.*Full ms .*', pl.ID) and ms_level == 1):
+            if not include_ms1 and (re.search('.*Full ms .*', pl.ID)):
                 continue
             if 'convert_id' in pl.metadata:
                 convert_id = pl.metadata['convert_id']

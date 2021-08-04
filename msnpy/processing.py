@@ -47,8 +47,8 @@ def hdf5_peaklists_to_txt(filename: str, path_out: str, delimiter:str = "\t"):
 
     """
 
-    :param filename:
-    :param path_out:
+    :param filename: Path to an existing HDF5 file
+    :param path_out: Path to a new text file
     :param delimiter:
     """
 
@@ -291,10 +291,16 @@ def group_scans(filename: str, nh: int = 2, min_replicates: int or Sequence[int]
 
     """
 
-    :param filename:
-    :param nh:
-    :param min_replicates:
-    :param report:
+    :param filename: Path to a .raw or .mzML file
+
+        .. warning::
+        When using .mzML files generated using the Proteowizard tool, SIM-type scans will only be treated
+        as spectra if the ‘simAsSpectra’ filter was set to true during the conversion process:
+        *msconvert.exe example.raw* **--simAsSpectra** *--64 --zlib --filter "peakPicking true 1-”*
+
+    :param nh: Number of overlapping or matching scan events that should be considered for grouping.
+    :param min_replicates: Minimum number of replicate trees required for each group.
+    :param report: Path to a tab-delimited text file to which to write a summary of the groups (e.g. scan events, replicates, etc).
     :param max_injection_time:
     :param merge_ms1:
     :param split:
@@ -390,17 +396,52 @@ def process_scans(filename: str, groups: list, function_noise: str, snr_thres: f
                   block_size: int = 5000, ncpus: int = None):
     """
 
-    :param filename:
+    :param filename: Path to a .raw or .mzML file
+
+        .. warning::
+        When using .mzML files generated using the Proteowizard tool, SIM-type scans will only be treated
+        as spectra if the ‘simAsSpectra’ filter was set to true during the conversion process:
+        *msconvert.exe example.raw* **--simAsSpectra** *--64 --zlib --filter "peakPicking true 1-”*
+
     :param groups:
-    :param function_noise:
-    :param snr_thres:
-    :param ppm:
-    :param min_fraction:
-    :param rsd_thres:
-    :param normalise:
-    :param ringing_thres:
-    :param exclusion_list:
-    :param report:
+
+    :param function_noise: Function to calculate the noise from each scan. The following options are available:
+
+        * **median** - the median of all peak intensities within a given scan is used as the noise value.
+
+        * **mean** - the unweighted mean average of all peak intensities within a given scan is used as the noise value.
+
+        * **mad (Mean Absolute Deviation)** - the noise value is set as the mean of the absolute differences between peak
+          intensities and the mean peak intensity (calculated across all peak intensities within a given scan).
+
+        * **noise_packets** - the noise value is calculated using the proprietary algorithms contained in Thermo Fisher
+          Scientific’s msFileReader library. This option should only be applied when you are processing .RAW files.
+
+    :param snr_thres: Peaks with a signal-to-noise ratio (SNR) less-than or equal-to this value will be removed
+        from the output peaklist.
+
+    :param ppm: Maximum tolerated m/z deviation in parts per million.
+
+    :param min_fraction: A numerical value from 0 to 1 that specifies the minimum proportion of scans a given mass
+        spectral peak must be detected in, in order for it to be kept in the output peaklist. Here, scans refers to
+        replicates of the same scan event type, i.e. if set to 0.33, then a peak would need to be detected in at least
+        1 of the 3 replicates of a given scan event type.
+
+    :param rsd_thres: Relative standard deviation threshold - A numerical value equal-to or greater-than 0.
+        If greater than 0, then peaks whose intensity values have a percent relative standard deviation (otherwise termed
+        the percent coefficient of variation) greater-than this value are excluded from the output peaklist.
+
+    :param normalise: Normalise by Total Ion Current (TIC). Default = False
+
+    :param ringing_thres: Fourier transform-based mass spectra often contain peaks (ringing artefacts) around
+        spectral features (i.e. 1.0 Da) that require removal. This threshold is a positive float indicating the required relative
+        intensity a peak must exceed (with reference to the largest peak in a cluster of peaks) in order to be retained.
+
+    :param exclusion_list: This option allows for specific m/z valuess to be removed, this
+        option may be useful for removing peaks that correspond to artifact and/or system noise peaks.
+
+    :param report: Path to a tab-delimited text file to which to write measures of quality (e.g. RSD, number of peaks, etc) for
+        peaks within each scan/fragmentation event processed in each .RAW or .mzML files.
     :param block_size: number of peaks in each clustering block.
     :param ncpus: number of CPUs for parallel clustering. Default = None, indicating using as many as possible
     :return: List of (average) PeakList objects (DIMSpy)

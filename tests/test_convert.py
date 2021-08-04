@@ -51,29 +51,39 @@ class ConvertTestCase(unittest.TestCase):
         non_merged_original = load_peaklists_from_hdf5(
             to_test_data('convert', 'test_non_merged_pls.hdf5')
         )
-
         for i in range(0, len(non_merged_original)):
-            self.assertTrue(np.array_equal(non_merged_pls[i].peaks,
-                                           non_merged_original[i].peaks))
+            for j in range(0, len(non_merged_original[i].peaks)):
+                for k in range(0, len(non_merged_original[i].peaks[j])):
+                    self.assertTrue(non_merged_original[i].peaks[j][k] == non_merged_pls[i].peaks[j][k])
+        # for i in range(0, len(non_merged_original)):
+        #     self.assertTrue(np.array_equal(non_merged_pls[i].peaks,
+        #                                    non_merged_original[i].peaks))
 
         merged_original = load_peaklists_from_hdf5(
             to_test_data('convert', 'test_merged_pls.hdf5')
         )
+
         for i in range(0, len(merged_original)):
-            self.assertTrue(np.array_equal(merged_pls[i].peaks,
-                                           merged_original[i].peaks))
+            for j in range(0, len(merged_original[i].peaks)):
+                for k in range(0, len(merged_original[i].peaks[j])):
+                    self.assertTrue(merged_original[i].peaks[j][k] == merged_pls[i].peaks[j][k])
+            # self.assertTrue(np.array_equal(merged_pls[i].peaks,
+            #                                merged_original[i].peaks))
 
         ms1_precursor_original = load_peaklists_from_hdf5(
             to_test_data('convert', 'test_ms1_precursors_pl.hdf5')
         )
 
         for i in range(0, len(ms1_precursor_original)):
-            self.assertTrue(np.array_equal(ms1_precursor_pl[i].peaks,
-                                           ms1_precursor_original[i].peaks))
+            for j in range(0, len(ms1_precursor_original[i].peaks)):
+                for k in range(0, len(ms1_precursor_original[i].peaks[j])):
+                    self.assertTrue(ms1_precursor_original[i].peaks[j][k] == ms1_precursor_pl[i].peaks[j][k])
+        # for i in range(0, len(ms1_precursor_original)):
+        #     self.assertTrue(np.array_equal(ms1_precursor_pl[i].peaks,
+        #                                    ms1_precursor_original[i].peaks))
 
     def test_peaklist2msp_non_merged(self):
-        # test_out = to_test_data(os.path.join('convert',
-        #  'test_non_merged.msp'))
+        # test_out = to_test_data(os.path.join('convert', 'test_non_merged.msp'))
         test_out = os.path.join(tempfile.mkdtemp(), 'test_non_merged.msp')
         pl = load_peaklists_from_hdf5(
             to_test_data('convert', 'test_non_merged_pls.hdf5')
