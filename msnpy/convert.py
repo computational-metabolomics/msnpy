@@ -260,7 +260,7 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
             if dt.shape[0] == 0:
                 continue
 
-            if not include_ms1 and (re.search('.*Full ms .*', pl.ID) and ms_level == 1):
+            if not include_ms1 and re.search('.*Full ms .*', pl.ID):
                 continue
             if 'convert_id' in pl.metadata:
                 convert_id = pl.metadata['convert_id']
