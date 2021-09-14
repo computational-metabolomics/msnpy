@@ -222,7 +222,7 @@ def tree2peaklist(tree_pth, adjust_mz=True, merge=True, ppm=5, ms1=True, skip_si
     return pls, merged_pls, ms1_precursors_pl
 
 
-def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_annotations=True, include_ms1=False):
+def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_annotations=True, include_ms1=False, ra_thres=0):
 
     msp_params = {}
 
@@ -297,12 +297,11 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
                 f.write('{} {}\n'.format(msp_params['fragmentation_mode'], ', '.join(set(mtchz[0]))))
                 f.write('{} {}\n'.format(msp_params['collision_energy'], ', '.join(ce)))
 
-
-
             mz = dt['mz']
             intensity = dt['intensity']
             ra = dt['intensity'] / np.max(dt['intensity']) * 100
-
+            pknum = sum([i > ra_thres for i in ra])
+            
             if msp_type == 'massbank':
                 if 'mf' in dt.dtype.names:
                     mf = dt['mf']
@@ -313,12 +312,14 @@ def peaklist2msp(pls, out_pth, msp_type='massbank', polarity='positive', msnpy_a
                     for i in range(0, len(mz)):
                         f.write('{}\t{}\t{}\n'.format(mz[i], mf[i], mass[i], adduct[i]))
 
-            f.write('{} {}\n'.format(msp_params['num_peaks'], dt.shape[0]))
+            f.write('{} {}\n'.format(msp_params['num_peaks'], pknum))
 
             if msp_params['cols']:
                 f.write('{}\n'.format(msp_params['cols']))
 
             for i in range(0, len(mz)):
+                if ra[i] < ra_thres:
+                    continue 
                 if msp_type == 'massbank':
                     f.write('{}\t{}\t{}\n'.format(mz[i], intensity[i], ra[i]))
                 else:
